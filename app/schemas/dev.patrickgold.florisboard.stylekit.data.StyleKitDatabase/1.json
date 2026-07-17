@@ -1,0 +1,625 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "a46c5f748e94d5a91e409773c682b5fa",
+    "entities": [
+      {
+        "tableName": "sk_word_frequency",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`row_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `word` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `last_used` INTEGER NOT NULL, `is_user_added` INTEGER NOT NULL, `locale` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "rowId",
+            "columnName": "row_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "word",
+            "columnName": "word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frequency",
+            "columnName": "frequency",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsed",
+            "columnName": "last_used",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isUserAdded",
+            "columnName": "is_user_added",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locale",
+            "columnName": "locale",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "row_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sk_word_frequency_word",
+            "unique": true,
+            "columnNames": [
+              "word"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_sk_word_frequency_word` ON `${TABLE_NAME}` (`word`)"
+          },
+          {
+            "name": "index_sk_word_frequency_last_used",
+            "unique": false,
+            "columnNames": [
+              "last_used"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sk_word_frequency_last_used` ON `${TABLE_NAME}` (`last_used`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sk_bigram",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`first_word` TEXT NOT NULL, `second_word` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `last_used` INTEGER NOT NULL, PRIMARY KEY(`first_word`, `second_word`))",
+        "fields": [
+          {
+            "fieldPath": "firstWord",
+            "columnName": "first_word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "secondWord",
+            "columnName": "second_word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frequency",
+            "columnName": "frequency",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsed",
+            "columnName": "last_used",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "first_word",
+            "second_word"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sk_bigram_first_word",
+            "unique": false,
+            "columnNames": [
+              "first_word"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sk_bigram_first_word` ON `${TABLE_NAME}` (`first_word`)"
+          },
+          {
+            "name": "index_sk_bigram_second_word",
+            "unique": false,
+            "columnNames": [
+              "second_word"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sk_bigram_second_word` ON `${TABLE_NAME}` (`second_word`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sk_trigram",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`first_word` TEXT NOT NULL, `second_word` TEXT NOT NULL, `third_word` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `last_used` INTEGER NOT NULL, PRIMARY KEY(`first_word`, `second_word`, `third_word`))",
+        "fields": [
+          {
+            "fieldPath": "firstWord",
+            "columnName": "first_word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "secondWord",
+            "columnName": "second_word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "thirdWord",
+            "columnName": "third_word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frequency",
+            "columnName": "frequency",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsed",
+            "columnName": "last_used",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "first_word",
+            "second_word",
+            "third_word"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sk_trigram_first_word_second_word",
+            "unique": false,
+            "columnNames": [
+              "first_word",
+              "second_word"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sk_trigram_first_word_second_word` ON `${TABLE_NAME}` (`first_word`, `second_word`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sk_user_dictionary",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`row_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `word` TEXT NOT NULL, `added_at` INTEGER NOT NULL, `locale` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "rowId",
+            "columnName": "row_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "word",
+            "columnName": "word",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "added_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locale",
+            "columnName": "locale",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "row_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sk_user_dictionary_word",
+            "unique": true,
+            "columnNames": [
+              "word"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_sk_user_dictionary_word` ON `${TABLE_NAME}` (`word`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sk_preset",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`row_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `mapping_json` TEXT NOT NULL, `description` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `is_built_in` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "rowId",
+            "columnName": "row_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mappingJson",
+            "columnName": "mapping_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBuiltIn",
+            "columnName": "is_built_in",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "row_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sk_preset_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_sk_preset_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sk_shortcut",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`row_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `trigger` TEXT NOT NULL, `emojis` TEXT NOT NULL, `trigger_mode` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `is_built_in` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "rowId",
+            "columnName": "row_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trigger",
+            "columnName": "trigger",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "emojis",
+            "columnName": "emojis",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "triggerMode",
+            "columnName": "trigger_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBuiltIn",
+            "columnName": "is_built_in",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "row_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sk_shortcut_trigger",
+            "unique": false,
+            "columnNames": [
+              "trigger"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sk_shortcut_trigger` ON `${TABLE_NAME}` (`trigger`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sk_config",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `theme_id` TEXT NOT NULL, `key_shape` TEXT NOT NULL, `background_media_uri` TEXT NOT NULL, `background_scrim_alpha` REAL NOT NULL, `glint_enabled` INTEGER NOT NULL, `glint_color` INTEGER NOT NULL, `glint_speed_ms` INTEGER NOT NULL, `glint_opacity` REAL NOT NULL, `sound_pack` TEXT NOT NULL, `sound_volume` REAL NOT NULL, `sound_muted` INTEGER NOT NULL, `sound_custom_uri` TEXT NOT NULL, `haptics_enabled` INTEGER NOT NULL, `active_preset_id` INTEGER NOT NULL, `live_preset_enabled` INTEGER NOT NULL, `emoji_shortcuts_enabled` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "themeId",
+            "columnName": "theme_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "keyShape",
+            "columnName": "key_shape",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "backgroundMediaUri",
+            "columnName": "background_media_uri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "backgroundScrimAlpha",
+            "columnName": "background_scrim_alpha",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "glintEnabled",
+            "columnName": "glint_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "glintColor",
+            "columnName": "glint_color",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "glintSpeedMs",
+            "columnName": "glint_speed_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "glintOpacity",
+            "columnName": "glint_opacity",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "soundPack",
+            "columnName": "sound_pack",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "soundVolume",
+            "columnName": "sound_volume",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "soundMuted",
+            "columnName": "sound_muted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "soundCustomUri",
+            "columnName": "sound_custom_uri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hapticsEnabled",
+            "columnName": "haptics_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activePresetId",
+            "columnName": "active_preset_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "livePresetEnabled",
+            "columnName": "live_preset_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "emojiShortcutsEnabled",
+            "columnName": "emoji_shortcuts_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "sk_auto_sender_script",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`row_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `target_package` TEXT NOT NULL, `target_class` TEXT NOT NULL, `use_accessibility` INTEGER NOT NULL, `messages_json` TEXT NOT NULL, `loop_mode` TEXT NOT NULL, `loop_count` INTEGER NOT NULL, `interval_ms` INTEGER NOT NULL, `per_message_delay_ms` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "rowId",
+            "columnName": "row_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetPackage",
+            "columnName": "target_package",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetClass",
+            "columnName": "target_class",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "useAccessibility",
+            "columnName": "use_accessibility",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messagesJson",
+            "columnName": "messages_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loopMode",
+            "columnName": "loop_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loopCount",
+            "columnName": "loop_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalMs",
+            "columnName": "interval_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "perMessageDelayMs",
+            "columnName": "per_message_delay_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "row_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sk_auto_sender_script_created_at",
+            "unique": false,
+            "columnNames": [
+              "created_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sk_auto_sender_script_created_at` ON `${TABLE_NAME}` (`created_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sk_auto_sender_log",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`row_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sent_at` INTEGER NOT NULL, `target_package` TEXT NOT NULL, `message` TEXT NOT NULL, `status` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "rowId",
+            "columnName": "row_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sentAt",
+            "columnName": "sent_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetPackage",
+            "columnName": "target_package",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "row_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sk_auto_sender_log_sent_at",
+            "unique": false,
+            "columnNames": [
+              "sent_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sk_auto_sender_log_sent_at` ON `${TABLE_NAME}` (`sent_at`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a46c5f748e94d5a91e409773c682b5fa')"
+    ]
+  }
+}
