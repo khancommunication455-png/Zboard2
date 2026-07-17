@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  StyleKit: AccessibilityService config for the Auto Sender fallback.
+
+  Privacy contract:
+    - Only active when the user has explicitly enabled this service in
+      system Accessibility settings AND a script that requests accessibility
+      mode is running.
+    - We never read screen contents outside of the Auto Sender dispatch path
+      (the [AutoSenderAccessibilityService.send] method).
+    - onAccessibilityEvent is a no-op — everything is driven synchronously
+      from the foreground service.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/stylekit_auto_sender_accessibility_description"
+    android:notificationTimeout="100"
+    android:packageNames=""/>
