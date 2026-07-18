@@ -202,25 +202,27 @@ class LatinLanguageProvider(context: Context) : SpellingProvider, SuggestionProv
         // IME startup if the user never types in this subtype.
     }
 
-    override suspend fun preload(subtype: Subtype) = withContext(Dispatchers.IO) {
-        wordData.withLock { wordData ->
-            if (wordData.isNotEmpty()) return@withLock
-            val rawData = try {
-                appContext.assets.readText("ime/dict/data.json")
-            } catch (t: Throwable) {
-                flogDebug { "LatinLanguageProvider: failed to load data.json: ${t.message}" }
-                return@withLock
-            }
-            val jsonData = try {
-                Json.decodeFromString(wordDataSerializer, rawData)
-            } catch (t: Throwable) {
-                flogDebug { "LatinLanguageProvider: failed to parse data.json: ${t.message}" }
-                return@withLock
-            }
-            wordData.putAll(jsonData)
-            sortedKeys.withLock { keys ->
-                keys.clear()
-                keys.addAll(wordData.keys.sorted())
+    override suspend fun preload(subtype: Subtype) {
+        withContext(Dispatchers.IO) {
+            wordData.withLock { wordData ->
+                if (wordData.isNotEmpty()) return@withLock
+                val rawData = try {
+                    appContext.assets.readText("ime/dict/data.json")
+                } catch (t: Throwable) {
+                    flogDebug { "LatinLanguageProvider: failed to load data.json: ${t.message}" }
+                    return@withLock
+                }
+                val jsonData = try {
+                    Json.decodeFromString(wordDataSerializer, rawData)
+                } catch (t: Throwable) {
+                    flogDebug { "LatinLanguageProvider: failed to parse data.json: ${t.message}" }
+                    return@withLock
+                }
+                wordData.putAll(jsonData)
+                sortedKeys.withLock { keys ->
+                    keys.clear()
+                    keys.addAll(wordData.keys.sorted())
+                }
             }
         }
     }
