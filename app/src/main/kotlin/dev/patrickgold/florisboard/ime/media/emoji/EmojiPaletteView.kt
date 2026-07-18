@@ -65,6 +65,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+// StyleKit: Emoji Kitchen integration — when the user long-presses an emoji
+// in the palette, we open the Kitchen panel which shows the available combos
+// fetched on-demand from gstatic.
+import dev.patrickgold.florisboard.ime.media.emoji.kitchen.EmojiKitchenPanel
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -202,6 +206,19 @@ fun EmojiPaletteView(
             onHistoryAction = {
                 recentlyUsedVersion++
             },
+            // StyleKit: long-press on an emoji with no variations opens the
+            // Emoji Kitchen panel for that emoji (gated by the
+            // `emoji__kitchen_enabled` preference — privacy-conscious users
+            // can disable it to avoid gstatic network calls). Long-press on
+            // an emoji WITH variations still opens the variation popup
+            // (existing behavior). This mirrors Gboard: long-pressing 😀
+            // (no skin-tone variants) shows the Kitchen; long-pressing 👋
+            // (with skin-tone variants) shows the skin-tone picker.
+            onKitchenOpen = { emojiValue ->
+                if (prefs.emoji.kitchenEnabled.get()) {
+                    kitchenAnchor = emojiValue
+                }
+            },
         )
     }
 
@@ -286,6 +303,32 @@ fun EmojiPaletteView(
         // Reset the pager to the first page when emojiHistory is enabled
         LaunchedEffect(emojiHistoryEnabled) {
             pagerState.animateScrollToPage(0)
+        }
+
+        // StyleKit: Emoji Kitchen panel. Shown when the user long-presses
+        // an emoji (see EmojiKeyWrapper below). Renders above the tab row so
+        // it doesn't push the keyboard layout down. Tapping a combo commits
+        // BOTH emojis (anchor + partner) — Gboard-style: long-press 😀, tap
+        // the (😀, 😎) combo, end up with "😀😎" in the editor. The anchor
+        // wasn't typed on long-press (long-press is for variants/kitchen),
+        // so we have to type both here.
+        var kitchenAnchor by remember { mutableStateOf<String?>(null) }
+        if (kitchenAnchor != null) {
+            EmojiKitchenPanel(
+                anchorEmoji = kitchenAnchor!!,
+                onCommitCombo = { partnerEmoji ->
+                    // Commit anchor first, then partner — both get added to
+                    // emoji history so they show up in the Recently Used tab.
+                    keyboardManager.inputEventDispatcher.sendDownUp(kitchenAnchor!!)
+                    keyboardManager.inputEventDispatcher.sendDownUp(partnerEmoji)
+                    scope.launch {
+                        EmojiHistoryHelper.markEmojiUsed(prefs, kitchenAnchor!!)
+                        EmojiHistoryHelper.markEmojiUsed(prefs, partnerEmoji)
+                    }
+                    kitchenAnchor = null
+                },
+                onDismiss = { kitchenAnchor = null },
+            )
         }
 
         EmojiCategoriesTabRow(
@@ -402,6 +445,7 @@ private fun EmojiKey(
     isRecent: Boolean,
     onEmojiInput: (Emoji) -> Unit,
     onHistoryAction: () -> Unit,
+    onKitchenOpen: (String) -> Unit = {},
 ) {
     val inputFeedbackController = LocalInputFeedbackController.current
     val base = emojiSet.base(withSkinTone = preferredSkinTone)
@@ -423,6 +467,11 @@ private fun EmojiKey(
                         inputFeedbackController.keyLongPress(TextKeyData.UNSPECIFIED)
                         if (variations.isNotEmpty() || isPinned || isRecent) {
                             showVariantsBox = true
+                        } else {
+                            // StyleKit: no variations / no history actions —
+                            // open Emoji Kitchen instead. This matches Gboard's
+                            // long-press-on-😀 behavior.
+                            onKitchenOpen(base.value)
                         }
                     },
                 )

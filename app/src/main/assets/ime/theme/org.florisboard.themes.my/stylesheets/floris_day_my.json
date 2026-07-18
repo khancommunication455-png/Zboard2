@@ -27,7 +27,7 @@
     "--on-surface": "dynamic-light-color(onSurface)",
     "--on-surface-variant": "#5f5f5f",
 
-    "--shape": "rounded-corner(8dp, 8dp, 8dp, 8dp)",
+    "--shape": "rounded-corner(12dp, 12dp, 12dp, 12dp)",
     "--shape-variant": "rounded-corner(12dp, 12dp, 12dp, 12dp)",
     "--shape-chip": "rounded-corner(50%, 50%, 50%, 50%)"
   },
@@ -240,6 +240,14 @@
   "smartbar-candidate-word:pressed": {
     "background": "var(--surface)",
     "foreground": "var(--on-surface)"
+  },
+  "smartbar-candidate-word[emphasis=\"1\"]": {
+    "background": "var(--surface)",
+    "foreground": "var(--on-surface)",
+    "font-weight": "bold",
+    "font-size": "15sp",
+    "padding": "10dp 0dp",
+    "shape": "rectangle()"
   },
   "smartbar-candidate-word-secondary-text": {
     "font-size": "8sp",

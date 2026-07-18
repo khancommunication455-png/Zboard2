@@ -297,36 +297,12 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
         scope.launch {
             candidate.sourceProvider?.notifySuggestionAccepted(subtypeManager.activeSubtype, candidate)
         }
-        // StyleKit: suggestion/spelling providers now always return plain-ASCII
-        // candidate text (see NlpManager.suggest's fontNormalized() pass), so
-        // that autocorrect keeps working while a Font Style preset is active.
-        // But committing plain ASCII into a stylized message would look like a
-        // font glitch to the user, so restyle the candidate's text through the
-        // currently active preset mapping right before it's inserted. This
-        // doesn't touch training (see recordWordCommitForLearning below, which
-        // uses the original un-restyled text) and is a no-op when no preset is
-        // active or the candidate is non-textual (clipboard/emoji already carry
-        // their own literal text).
-        val committedCandidate = when (candidate) {
-            is dev.patrickgold.florisboard.ime.nlp.WordSuggestionCandidate -> {
-                val mapping = dev.patrickgold.florisboard.stylekit.preset.LivePresetApplier.get(appContext).currentMapping()
-                if (mapping.isNotEmpty()) {
-                    val restyled = dev.patrickgold.florisboard.stylekit.preset.TextConverter.convertText(
-                        candidate.text.toString(), mapping,
-                    )
-                    candidate.copy(text = restyled)
-                } else candidate
-            }
-            else -> candidate
-        }
-        when (committedCandidate) {
-            is ClipboardSuggestionCandidate -> editorInstance.commitClipboardItem(committedCandidate.clipboardItem)
-            else -> editorInstance.commitCompletion(committedCandidate)
+        when (candidate) {
+            is ClipboardSuggestionCandidate -> editorInstance.commitClipboardItem(candidate.clipboardItem)
+            else -> editorInstance.commitCompletion(candidate)
         }
         // StyleKit: train the on-device learning model with the accepted word.
         // Privacy: no-op when incognito or when personalized learning is off.
-        // Intentionally uses the original (un-restyled) candidate text so the
-        // learning tables always store plain ASCII, regardless of font.
         recordWordCommitForLearning(candidate.text?.toString())
     }
 

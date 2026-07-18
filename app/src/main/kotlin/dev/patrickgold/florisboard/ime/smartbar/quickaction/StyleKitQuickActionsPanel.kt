@@ -160,23 +160,6 @@ fun StyleKitQuickActionsPanel() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                // StyleKit: one-tap way back to plain typing without leaving the
-                // keyboard or hunting through Settings — turns the live preset
-                // off (same effect as "deactivatePreset" in the Presets screen).
-                StyleKitActionButton(
-                    modifier = Modifier.weight(1f),
-                    label = "Aa Normal Font",
-                    color = Color(0xFF06E6FF),
-                    onClick = {
-                        scope.launch {
-                            tryOrNull {
-                                val db = StyleKitDatabase.get(context) ?: return@tryOrNull
-                                db.configDao().setPreset(0L, enabled = false)
-                                context.showShortToastSync("Back to normal font")
-                            }
-                        }
-                    },
-                )
                 StyleKitActionButton(
                     modifier = Modifier.weight(1f),
                     label = "⚙ Open Settings",

@@ -50,7 +50,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.florisboard.lib.kotlin.guardedByLock
 import org.florisboard.lib.kotlin.collectLatestIn
-import dev.patrickgold.florisboard.stylekit.preset.fontNormalized
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.properties.Delegates
 
@@ -186,16 +185,11 @@ class NlpManager(context: Context) {
         followingWords: List<String>,
         maxSuggestionCount: Int,
     ): SpellingResult {
-        // StyleKit: normalize stylized Unicode (Font Style presets) back to
-        // plain ASCII before spell-checking, otherwise the underline/correction
-        // pass silently stops matching anything once a preset is active. This
-        // is a plain word-list normalization (no ranges to realign), so it's
-        // safe to apply unconditionally — it's a no-op for ordinary ASCII text.
         return getSpellingProvider(subtype).spell(
             subtype = subtype,
-            word = dev.patrickgold.florisboard.stylekit.preset.FontNormalizer.normalize(word),
-            precedingWords = precedingWords.map { dev.patrickgold.florisboard.stylekit.preset.FontNormalizer.normalize(it) },
-            followingWords = followingWords.map { dev.patrickgold.florisboard.stylekit.preset.FontNormalizer.normalize(it) },
+            word = word,
+            precedingWords = precedingWords,
+            followingWords = followingWords,
             maxSuggestionCount = maxSuggestionCount,
             allowPossiblyOffensive = !prefs.suggestion.blockPossiblyOffensive.get(),
             isPrivateSession = keyboardManager.activeState.isIncognitoMode,
@@ -227,22 +221,11 @@ class NlpManager(context: Context) {
     fun suggest(subtype: Subtype, content: EditorContent) {
         val reqTime = SystemClock.uptimeMillis()
         scope.launch {
-            // StyleKit: the base emoji-suggestion and word-suggestion/spelling
-            // providers only know plain ASCII/dictionary text. When a Font
-            // Style preset is active, `content.text` (and the composing/word
-            // ranges within it) are stylized Unicode, so these providers would
-            // never match anything and suggestions would silently go dead.
-            // Normalize once here and hand the plain-text snapshot to both —
-            // this is what makes suggestions/emoji-suggestions/autocorrect
-            // work under *any* preset (built-in or user-created), not just
-            // the StyleKit-specific providers below that already normalized
-            // internally.
-            val normalizedContent = content.fontNormalized()
             val emojiSuggestions = when {
                 prefs.emoji.suggestionEnabled.get() -> {
                     emojiSuggestionProvider.suggest(
                         subtype = subtype,
-                        content = normalizedContent,
+                        content = content,
                         maxCandidateCount = prefs.emoji.suggestionCandidateMaxCount.get(),
                         allowPossiblyOffensive = !prefs.suggestion.blockPossiblyOffensive.get(),
                         isPrivateSession = keyboardManager.activeState.isIncognitoMode,
@@ -257,7 +240,7 @@ class NlpManager(context: Context) {
                 else -> {
                     getSuggestionProvider(subtype).suggest(
                         subtype = subtype,
-                        content = normalizedContent,
+                        content = content,
                         maxCandidateCount = 8,
                         allowPossiblyOffensive = !prefs.suggestion.blockPossiblyOffensive.get(),
                         isPrivateSession = keyboardManager.activeState.isIncognitoMode,
@@ -290,7 +273,7 @@ class NlpManager(context: Context) {
                 runCatching {
                     romanUrduSuggestionProvider.suggest(
                         subtype = subtype,
-                        content = normalizedContent,
+                        content = content,
                         maxCandidateCount = 5,
                         allowPossiblyOffensive = !prefs.suggestion.blockPossiblyOffensive.get(),
                         isPrivateSession = isPrivate,

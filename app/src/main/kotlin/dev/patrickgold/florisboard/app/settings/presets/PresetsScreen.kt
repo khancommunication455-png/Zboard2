@@ -16,8 +16,6 @@
 
 package dev.patrickgold.florisboard.app.settings.presets
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -37,11 +35,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.FontDownloadOff
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -73,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import dev.patrickgold.florisboard.app.LocalNavController
 import dev.patrickgold.florisboard.stylekit.data.entity.PresetEntity
 import dev.patrickgold.florisboard.stylekit.preset.DefaultPresets
+import dev.patrickgold.florisboard.stylekit.preset.PresetExportImport
 import dev.patrickgold.florisboard.stylekit.preset.PresetRepository
 import dev.patrickgold.florisboard.stylekit.preset.TextConverter
 import kotlinx.coroutines.launch
@@ -103,6 +101,45 @@ fun PresetsScreen() {
     var inputText by remember { mutableStateOf("") }
     var editingPreset by remember { mutableStateOf<PresetEntity?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
+
+    // StyleKit: SAF launcher for export ("create file") and import ("open file").
+    // Both use ActivityResultContracts.CreateDocument / OpenDocument respectively.
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val all = repository.getAll()
+                val ok = PresetExportImport.exportToUri(context, all, uri)
+                context.showShortToastSync(
+                    if (ok) "Exported ${all.size} preset(s)" else "Export failed"
+                )
+            }
+        }
+    }
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val imported = PresetExportImport.importFromUri(context, uri)
+                if (imported.isEmpty()) {
+                    context.showShortToastSync("Import failed: file is empty or invalid")
+                    return@launch
+                }
+                // Fetch existing names so we can de-dup on import.
+                val existing = repository.getAll().map { it.name }.toSet()
+                var inserted = 0
+                var skipped = 0
+                for ((name, mapping) in imported) {
+                    val finalName = if (name in existing) "$name (imported)" else name
+                    val rowId = repository.insert(finalName, mapping, description = "Imported")
+                    if (rowId > 0) inserted++ else skipped++
+                }
+                context.showShortToastSync("Imported $inserted preset(s)" + if (skipped > 0) ", $skipped skipped" else "")
+            }
+        }
+    }
 
     // Seed built-ins on first launch.
     LaunchedEffect(Unit) { repository.seedBuiltInsIfNeeded() }
@@ -136,46 +173,7 @@ fun PresetsScreen() {
         scope.launch {
             dev.patrickgold.florisboard.stylekit.data.StyleKitDatabase.get(context)?.configDao()?.setPreset(0L, enabled = false)
             rawConfig.value = rawConfig.value?.copy(activePresetId = 0L, livePresetEnabled = false)
-            context.showShortToastSync("Back to normal font")
-        }
-    }
-
-    // === Export / Import: presets are backed up/shared as a single JSON file
-    // via the system file picker (Storage Access Framework), same pattern used
-    // by the app's Backup/Restore screen. ===
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json"),
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            runCatching {
-                val json = repository.exportToJson(presets)
-                context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
-            }.onSuccess {
-                context.showShortToastSync("Exported ${presets.size} preset(s)")
-            }.onFailure {
-                context.showShortToastSync("Export failed")
-            }
-        }
-    }
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            runCatching {
-                val json = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?.toString(Charsets.UTF_8) ?: throw java.io.IOException("empty file")
-                repository.importFromJson(json)
-            }.onSuccess { count ->
-                if (count > 0) {
-                    context.showShortToastSync("Imported $count preset(s)")
-                } else {
-                    context.showShortToastSync("No presets found in file")
-                }
-            }.onFailure {
-                context.showShortToastSync("Import failed — not a valid presets file")
-            }
+            context.showShortToastSync("Live preset off")
         }
     }
 
@@ -189,18 +187,21 @@ fun PresetsScreen() {
                         Icon(Icons.Default.Edit, contentDescription = "Back")
                     }
                 },
+                // StyleKit: per-preset export/import is in the per-row actions
+                // (see PresetRow). These top-bar buttons are for bulk export
+                // (all presets at once) and bulk import.
                 actions = {
-                    IconButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
-                        Icon(Icons.Default.FileUpload, contentDescription = "Import presets")
+                    IconButton(onClick = {
+                        // Bulk export — user picks a destination file via SAF.
+                        exportLauncher.launch(PresetExportImport.suggestedFileName(presets.size))
+                    }) {
+                        Icon(Icons.Default.Download, contentDescription = "Export all presets")
                     }
                     IconButton(onClick = {
-                        if (presets.isEmpty()) {
-                            context.showShortToastSync("No presets to export")
-                        } else {
-                            exportLauncher.launch("stylekit-presets.json")
-                        }
+                        // Bulk import — user picks a .zboardpreset JSON file.
+                        importLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
                     }) {
-                        Icon(Icons.Default.FileDownload, contentDescription = "Export presets")
+                        Icon(Icons.Default.Upload, contentDescription = "Import presets")
                     }
                 },
             )
@@ -235,22 +236,6 @@ fun PresetsScreen() {
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        // Always-visible escape hatch back to plain typing —
-                        // separate from the per-preset chips so it doesn't
-                        // require remembering "tap the active one again".
-                        AssistChip(
-                            onClick = { deactivatePreset() },
-                            label = { Text("Normal Font") },
-                            leadingIcon = { Icon(Icons.Default.FontDownloadOff, contentDescription = null) },
-                            colors = if (!liveEnabled) {
-                                AssistChipDefaults.assistChipColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
-                            } else {
-                                AssistChipDefaults.assistChipColors()
-                            },
-                        )
                         presets.forEach { preset ->
                             val isSelected = preset.rowId == activeId && liveEnabled
                             AssistChip(
@@ -334,6 +319,22 @@ fun PresetsScreen() {
                                 repository.insert("${preset.name} (copy)", mapping, preset.description)
                             }
                         },
+                        onShare = {
+                            // StyleKit: per-preset quick-share via ACTION_SEND.
+                            // Sends the JSON payload as text — recipient can save
+                            // it to a .zboardpreset file and import on their device.
+                            val payload = PresetExportImport.buildSharePayload(preset)
+                            if (payload != null) {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "application/json"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, payload)
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "${preset.name}.zboardpreset")
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Share preset"))
+                            } else {
+                                context.showShortToastSync("Could not build share payload")
+                            }
+                        },
                         onDelete = { scope.launch { repository.delete(preset) } },
                     )
                 }
@@ -373,6 +374,7 @@ private fun PresetRow(
     sample: String,
     onEdit: () -> Unit,
     onDuplicate: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -395,6 +397,11 @@ private fun PresetRow(
             }
             IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit") }
             IconButton(onClick = onDuplicate) { Icon(Icons.Default.Add, contentDescription = "Duplicate") }
+            // StyleKit: per-preset share — sends the JSON payload via
+            // ACTION_SEND so the user can AirDrop / message / save it to
+            // a file. Combined with the top-bar Import button, this gives
+            // full export/import workflow for individual presets.
+            IconButton(onClick = onShare) { Icon(Icons.Default.Share, contentDescription = "Share / export") }
             if (!preset.isBuiltIn) {
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Delete") }
             }

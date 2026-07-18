@@ -208,6 +208,17 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.mikepenz.aboutlibraries.core)
     implementation(libs.mikepenz.aboutlibraries.compose)
+    // StyleKit: Coil 3 for Emoji Kitchen image loading. Coil handles disk
+    // caching, memory caching, and Compose integration out of the box —
+    // perfect for fetching combo thumbnails from gstatic without writing
+    // a custom image loader. Also used by the StyleKit Media Background
+    // feature (video/GIF keyboard backgrounds).
+    // coil-network-okhttp is required for loading REMOTE URLs (without it,
+    // AsyncImage silently fails on any http/https request — Coil 3 split
+    // networking into a separate module in 3.x).
+    implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
+    implementation(libs.coil.network.okhttp)
     implementation(libs.patrickgold.compose.tooltip)
     implementation(libs.patrickgold.jetpref.datastore.model)
     ksp(libs.patrickgold.jetpref.datastore.model.processor)

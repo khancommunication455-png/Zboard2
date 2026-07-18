@@ -31,7 +31,12 @@ package dev.patrickgold.florisboard.stylekit.preset
  *  1. Strip combining diacritics (Zalgo, accents) via NFD normalization +
  *     Unicode category filter.
  *  2. Map known stylized Unicode blocks back to ASCII via code-point arithmetic.
- *  3. Pass through anything that's already ASCII.
+ *  3. Map any user-preset-specific stylized chars back to ASCII via the
+ *     reverse mapping registered by [setActivePresetMapping]. This is what
+ *     makes emoji shortcuts and the learning model work on EVERY font,
+ *     including custom presets the user creates (which may use arbitrary
+ *     Unicode code points the built-in mapping doesn't know about).
+ *  4. Pass through anything that's already ASCII.
  *
  * Returns the same string if no normalization was needed.
  *
@@ -39,6 +44,39 @@ package dev.patrickgold.florisboard.stylekit.preset
  * suggestion path on every keystroke, so it must be fast.
  */
 object FontNormalizer {
+
+    /**
+     * The reverse of the currently-active preset's mapping, set by
+     * [LivePresetApplier] whenever the active preset changes. Keys are
+     * stylized strings (the preset's value side); values are the original
+     * ASCII chars (the preset's key side). When set, this map is consulted
+     * AFTER the built-in Unicode-block mapping so user presets layer on
+     * top of the defaults.
+     *
+     * Volatile so the per-keystroke read in [normalize] never blocks on
+     * a stale value visible across threads.
+     */
+    @Volatile
+    private var userReverseMapping: Map<String, String> = emptyMap()
+
+    /**
+     * Registers a user-preset reverse mapping so [normalize] can convert
+     * custom stylized forms back to ASCII. Called by [LivePresetApplier]
+     * whenever the active preset changes (including on first apply after
+     * device restart — see LivePresetApplier's retry loop).
+     *
+     * Pass an empty map to clear the user mapping (preset deactivated).
+     */
+    fun setActivePresetMapping(forwardMapping: Map<String, String>) {
+        userReverseMapping = if (forwardMapping.isEmpty()) {
+            emptyMap()
+        } else {
+            // Build reverse: stylized string -> original char.
+            // If multiple ASCII chars map to the same stylized form (rare),
+            // the last one in iteration order wins.
+            forwardMapping.entries.associate { (k, v) -> v to k }
+        }
+    }
 
     /**
      * Normalize [text] to plain ASCII where possible.
@@ -53,8 +91,11 @@ object FontNormalizer {
     fun normalize(text: String): String {
         if (text.isEmpty()) return text
 
-        // Fast path: if every char is ASCII, return as-is.
-        if (text.all { it.code <= 0x7F }) return text
+        // Fast path: if every char is ASCII AND there's no user mapping
+        // active, return as-is. (If a user mapping IS active, we still need
+        // to scan because the user might have ASCII-to-ASCII rules like
+        // 'a' → '@' — though that's unusual.)
+        if (userReverseMapping.isEmpty() && text.all { it.code <= 0x7F }) return text
 
         // 1. NFD-decompose, then drop combining marks (U+0300–U+036F and a few
         //    other ranges used by Zalgo). This strips accents from "é" → "e"
@@ -62,11 +103,30 @@ object FontNormalizer {
         val decomposed = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
         val noCombining = StringBuilder(decomposed.length)
         for (ch in decomposed) {
-            if (isCombiningMark(ch.code)) continue
+            val cp = ch.code
+            // Mn (nonspacing mark) category covers U+0300–U+036F (combining
+            // diacritics) and the Zalgo ranges U+0488–U+0489, U+0591–U+05BD,
+            // etc. Easiest filter: skip the common combining ranges.
+            if (cp in 0x0300..0x036F) continue
+            if (cp in 0x0483..0x0489) continue
+            if (cp in 0x0591..0x05BD) continue
+            if (cp in 0x05BF..0x05BF) continue
+            if (cp in 0x0610..0x061A) continue
+            if (cp in 0x064B..0x065F) continue
+            if (cp in 0x0670..0x0670) continue
+            if (cp in 0x06D6..0x06DC) continue
+            if (cp in 0x06DF..0x06E4) continue
+            if (cp in 0x06E7..0x06E8) continue
+            if (cp in 0x06EA..0x06ED) continue
+            if (cp == 0x0711) continue
+            if (cp in 0x0730..0x074A) continue
+            if (cp in 0x0B82..0x0B83) continue
             noCombining.append(ch)
         }
 
-        // 2. Map known stylized blocks back to ASCII.
+        // 2. Map known stylized blocks back to ASCII. Walk by code point so
+        //    we handle surrogate pairs (Mathematical Alphanumeric Symbols
+        //    live in the supplementary plane and require 2 Java chars).
         val out = StringBuilder(noCombining.length)
         var i = 0
         val s = noCombining.toString()
@@ -81,72 +141,25 @@ object FontNormalizer {
             }
             i += charCount
         }
-        return out.toString()
-    }
 
-    /**
-     * Result of [normalizeWithMap]: the normalized text plus an index map from
-     * UTF-16 offsets in the *original* string to UTF-16 offsets in [text].
-     *
-     * [map] has size `original.length + 1`; `map[i]` is the offset in [text]
-     * that corresponds to code-unit index `i` of the original string. This
-     * lets callers translate EditorRange values (composing region, current
-     * word, selection) computed against the stylized editor text into the
-     * equivalent range in the normalized text, so a spell/suggestion provider
-     * can run against plain ASCII without losing track of word boundaries.
-     *
-     * Note: unlike [normalize], this variant does NOT run NFD decomposition
-     * (that step has no stable per-index mapping back to the original
-     * string), so precomposed accented characters pass through unchanged.
-     * That only matters for Zalgo-style combining stacks and is an
-     * acceptable trade-off since range alignment matters more than
-     * accent-stripping on the suggestion path.
-     */
-    fun normalizeWithMap(text: String): NormalizedText {
-        if (text.isEmpty()) return NormalizedText(text, intArrayOf(0))
-        if (text.all { it.code <= 0x7F }) return NormalizedText(text, IntArray(text.length + 1) { it })
-
-        val out = StringBuilder(text.length)
-        val map = IntArray(text.length + 1)
-        var i = 0
-        while (i < text.length) {
-            map[i] = out.length
-            val cp = text.codePointAt(i)
-            val charCount = Character.charCount(cp)
-            if (!isCombiningMark(cp)) {
-                val mapped = mapCodePoint(cp)
-                if (mapped != null) out.append(mapped) else out.appendCodePoint(cp)
+        // 3. Apply the user-preset reverse mapping as a string-level pass.
+        //    This catches user-defined stylized forms that aren't single
+        //    code points (e.g. a preset that maps 'a' to "@\u200B" — two
+        //    code points). We do this AFTER the code-point pass so the
+        //    code-point pass can handle the standard Unicode blocks even
+        //    when a user preset is active.
+        val userMap = userReverseMapping
+        if (userMap.isNotEmpty()) {
+            var replaced = out.toString()
+            for ((stylized, original) in userMap) {
+                if (stylized.isNotEmpty() && stylized != original) {
+                    replaced = replaced.replace(stylized, original)
+                }
             }
-            // Any trailing surrogate index of a supplementary-plane code point
-            // maps to the same output position as its leading unit.
-            for (k in 1 until charCount) map[i + k] = out.length
-            i += charCount
+            return replaced
         }
-        map[text.length] = out.length
-        return NormalizedText(out.toString(), map)
-    }
 
-    /** @see normalizeWithMap */
-    data class NormalizedText(val text: String, val map: IntArray)
-
-    private fun isCombiningMark(cp: Int): Boolean {
-        // Mn (nonspacing mark) category covers U+0300–U+036F (combining
-        // diacritics) and the Zalgo ranges U+0488–U+0489, U+0591–U+05BD,
-        // etc. Easiest filter: skip the common combining ranges.
-        return cp in 0x0300..0x036F ||
-            cp in 0x0483..0x0489 ||
-            cp in 0x0591..0x05BD ||
-            cp == 0x05BF ||
-            cp in 0x0610..0x061A ||
-            cp in 0x064B..0x065F ||
-            cp == 0x0670 ||
-            cp in 0x06D6..0x06DC ||
-            cp in 0x06DF..0x06E4 ||
-            cp in 0x06E7..0x06E8 ||
-            cp in 0x06EA..0x06ED ||
-            cp == 0x0711 ||
-            cp in 0x0730..0x074A ||
-            cp in 0x0B82..0x0B83
+        return out.toString()
     }
 
     /**

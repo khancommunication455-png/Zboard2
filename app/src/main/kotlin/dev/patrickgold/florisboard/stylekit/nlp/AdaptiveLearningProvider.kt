@@ -76,9 +76,58 @@ class AdaptiveLearningProvider(context: Context) : SuggestionProvider {
         private const val MAX_CANDIDATES = 8
         private const val USER_DICT_PROMOTION_THRESHOLD = 3 // commits before a non-dict word is promoted
         private const val PERSONAL_FREQ_BOOST = 2.0f // multiplier over base-dictionary confidence
+
+        // StyleKit advanced-learning tunables. The bigram and trigram weights
+        // are now CONTEXT-DEPENDENT: when we have a trigram match (very strong
+        // signal — three-word sequence seen together before), we boost it
+        // heavily; bigram matches get a moderate boost; unigram matches get
+        // the base score. This mirrors how Gboard surfaces "Good morning" as
+        // a strong next-word candidate after "good" because the bigram
+        // (good, morning) has been seen many times.
+        //
+        // StyleKit fix: the original formula `(freq * weight) / 100.0` saturates
+        // at 1.0 once a word has been committed ~45 times (45 * 2.2 / 100 = 0.99).
+        // After that, ANY further commits don't increase the score, which
+        // means "good morning" (committed 100 times) and "good evening"
+        // (committed 45 times) would tie at confidence 1.0 — bad UX.
+        // The new formula uses sqrt() so high-frequency entries keep pulling
+        // ahead but at a diminishing rate: sqrt(100) * 2.2 / 10 = 2.2 → clamp
+        // to 1.0; sqrt(45) * 2.2 / 10 = 1.47 → clamp to 1.0; sqrt(10) *
+        // 2.2 / 10 = 0.70. So freq=10 vs freq=4 → 0.70 vs 0.44, clear winner.
         private const val BIGRAM_WEIGHT = 1.4f
-        private const val TRIGRAM_WEIGHT = 1.8f
+        private const val TRIGRAM_WEIGHT = 2.2f
+
+        // Recency decay: words used within the last hour get a small freshness
+        // boost; words unused for over a week get a small penalty. This keeps
+        // the suggestions feeling current — if you've been texting about
+        // "dinner" all evening, "dinner" outranks "duck" even if both have
+        // the same lifetime frequency.
+        private const val RECENCY_BOOST_WINDOW_MS = 60L * 60 * 1000 // 1 hour
+        private const val RECENCY_BOOST = 0.15f
+        private const val RECENCY_PENALTY_WINDOW_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
+        private const val RECENCY_PENALTY = 0.10f
+
         private const val DECAY_AGE_MS = 30L * 24 * 60 * 60 * 1000 // 30 days
+    }
+
+    /**
+     * Maps a raw frequency count (unbounded positive integer from the DB) to
+     * a 0.0–1.0 confidence score using a sqrt curve. This prevents high-
+     * frequency entries from saturating at 1.0 while still giving low-
+     * frequency entries a meaningful score.
+     *
+     * Examples:
+     *   freq=1  → 0.10
+     *   freq=4  → 0.20
+     *   freq=9  → 0.30
+     *   freq=25 → 0.50
+     *   freq=64 → 0.80
+     *   freq=100+ → clamped to 1.0
+     */
+    private fun freqToScore(freq: Int, weight: Float): Double {
+        if (freq <= 0) return 0.0
+        val raw = kotlin.math.sqrt(freq.toDouble()) * weight / 10.0
+        return raw.coerceIn(0.0, 1.0)
     }
 
     private val appContext by context.appContext()
@@ -178,18 +227,29 @@ class AdaptiveLearningProvider(context: Context) : SuggestionProvider {
     ) {
         if (isPrivateSession) return
         if (!repository.isPersonalizedLearningEnabled()) return
-        val cleaned = word.lowercase().trim().trimEnd { !it.isLetterOrDigit() }
+        // StyleKit: defense-in-depth normalization. The caller (KeyboardManager)
+        // already calls FontNormalizer.normalize on the committed text, but
+        // suggestion candidates, gesture commits, and external callers may
+        // pass stylized text directly. We normalize here too so the unigram /
+        // bigram / trigram tables NEVER contain stylized forms, regardless of
+        // which entry point is used. This is what makes the learning model
+        // work consistently across every Font Style preset (Math Sans, Bold
+        // Serif, Bubble, Zalgo, Upside Down, etc.).
+        val normalizer = dev.patrickgold.florisboard.stylekit.preset.FontNormalizer
+        val cleaned = normalizer.normalize(word).lowercase().trim().trimEnd { !it.isLetterOrDigit() }
         if (cleaned.isBlank() || cleaned.length > 64) return
+        val cleanPrev = previousWord?.let { normalizer.normalize(it) }
+            ?.lowercase()?.trim()?.trimEnd { !it.isLetterOrDigit() }
+        val cleanPrevPrev = wordBeforePrevious?.let { normalizer.normalize(it) }
+            ?.lowercase()?.trim()?.trimEnd { !it.isLetterOrDigit() }
         tryOrNull {
             withContext(Dispatchers.IO) {
                 val now = System.currentTimeMillis()
                 repository.bumpUnigram(cleaned, now)
-                if (!previousWord.isNullOrBlank()) {
-                    val prev = previousWord.lowercase().trim().trimEnd { !it.isLetterOrDigit() }
-                    repository.bumpBigram(prev, cleaned, now)
-                    if (!wordBeforePrevious.isNullOrBlank()) {
-                        val prevPrev = wordBeforePrevious.lowercase().trim().trimEnd { !it.isLetterOrDigit() }
-                        repository.bumpTrigram(prevPrev, prev, cleaned, now)
+                if (!cleanPrev.isNullOrBlank()) {
+                    repository.bumpBigram(cleanPrev, cleaned, now)
+                    if (!cleanPrevPrev.isNullOrBlank()) {
+                        repository.bumpTrigram(cleanPrevPrev, cleanPrev, cleaned, now)
                     }
                 }
                 // Promote to user dictionary after threshold if not already known.
@@ -197,7 +257,7 @@ class AdaptiveLearningProvider(context: Context) : SuggestionProvider {
                 // Occasional decay to keep the table bounded.
                 repository.maybeRunDecay(now)
             }
-            flogDebug { "AdaptiveLearningProvider recorded commit: $cleaned (prev=$previousWord)" }
+            flogDebug { "AdaptiveLearningProvider recorded commit: $cleaned (prev=$cleanPrev)" }
         }
     }
 
@@ -212,10 +272,11 @@ class AdaptiveLearningProvider(context: Context) : SuggestionProvider {
         val unigrams = repository.suggestUnigramsByPrefix(prefix, limit)
         val userDict = repository.suggestUserDictByPrefix(prefix, limit)
         val exact = unigrams.firstOrNull { it.word == prefix }
+        val now = System.currentTimeMillis()
         return buildList {
             // 1) Exact-match unigram first — strong autocorrect candidate.
             if (exact != null) {
-                add(toCandidate(exact, isExactMatch = true, weight = PERSONAL_FREQ_BOOST))
+                add(toCandidate(exact, isExactMatch = true, weight = PERSONAL_FREQ_BOOST, now = now))
             }
             // 2) User-dictionary entries (custom words the user typed often).
             for (e in userDict) {
@@ -229,11 +290,11 @@ class AdaptiveLearningProvider(context: Context) : SuggestionProvider {
                     ))
                 }
             }
-            // 3) Other unigram prefix matches by personal frequency.
+            // 3) Other unigram prefix matches by personal frequency, recency-weighted.
             for (e in unigrams) {
                 if (e.word == prefix) continue
                 if (none { it.text.toString() == e.word }) {
-                    add(toCandidate(e, isExactMatch = false, weight = PERSONAL_FREQ_BOOST))
+                    add(toCandidate(e, isExactMatch = false, weight = PERSONAL_FREQ_BOOST, now = now))
                 }
             }
         }.take(limit)
@@ -246,36 +307,71 @@ class AdaptiveLearningProvider(context: Context) : SuggestionProvider {
         limit: Int,
     ): List<SuggestionCandidate> {
         if (word1.isNullOrBlank()) return emptyList()
+        val now = System.currentTimeMillis()
         val trigrams: List<TrigramEntity> =
             if (!word2.isNullOrBlank()) repository.suggestTrigrams(word2, word1, limit) else emptyList()
         val bigrams: List<BigramEntity> = repository.suggestBigrams(word1, limit)
 
-        return buildList {
-            for (t in trigrams) {
-                add(WordSuggestionCandidate(
-                    text = t.thirdWord,
-                    confidence = (t.frequency.toDouble() * TRIGRAM_WEIGHT / 100.0).coerceIn(0.0, 1.0),
+        // StyleKit: advanced next-word scoring. We collect candidates from
+        // trigrams and bigrams into a map keyed by the candidate word, taking
+        // the MAX score when both sources mention the same word. This avoids
+        // duplicate entries and produces a single ranked list with the
+        // strongest signal winning.
+        //
+        // StyleKit fix: use freqToScore() (sqrt curve) instead of the linear
+        // formula so high-frequency entries keep ranking above low-frequency
+        // ones rather than tying at 1.0.
+        val scored = LinkedHashMap<String, Double>()
+        for (t in trigrams) {
+            val raw = freqToScore(t.frequency, TRIGRAM_WEIGHT)
+            val recencyAdj = recencyAdjust(t.lastUsed, now)
+            val score = (raw + recencyAdj).coerceIn(0.0, 1.0)
+            // Trigram signal is stronger than bigram — replace if existing < score.
+            val existing = scored[t.thirdWord]
+            if (existing == null || existing < score) scored[t.thirdWord] = score
+        }
+        for (b in bigrams) {
+            val raw = freqToScore(b.frequency, BIGRAM_WEIGHT)
+            val recencyAdj = recencyAdjust(b.lastUsed, now)
+            val score = (raw + recencyAdj).coerceIn(0.0, 1.0)
+            val existing = scored[b.secondWord]
+            if (existing == null || existing < score) scored[b.secondWord] = score
+        }
+
+        return scored.entries
+            .sortedByDescending { it.value }
+            .take(limit)
+            .map { (word, conf) ->
+                WordSuggestionCandidate(
+                    text = word,
+                    confidence = conf,
                     isEligibleForAutoCommit = false,
                     isEligibleForUserRemoval = true,
                     sourceProvider = this@AdaptiveLearningProvider,
-                ))
+                )
             }
-            for (b in bigrams) {
-                if (none { it.text.toString() == b.secondWord }) {
-                    add(WordSuggestionCandidate(
-                        text = b.secondWord,
-                        confidence = (b.frequency.toDouble() * BIGRAM_WEIGHT / 100.0).coerceIn(0.0, 1.0),
-                        isEligibleForAutoCommit = false,
-                        isEligibleForUserRemoval = true,
-                        sourceProvider = this@AdaptiveLearningProvider,
-                    ))
-                }
-            }
-        }.take(limit)
     }
 
-    private fun toCandidate(e: WordFrequencyEntity, isExactMatch: Boolean, weight: Float): SuggestionCandidate {
-        val confidence = (e.frequency.toDouble() * weight / 100.0).coerceIn(0.0, 1.0)
+    /**
+     * Recency adjustment: returns a small bonus for entries used within the
+     * last hour, a small penalty for entries unused for over a week, zero
+     * otherwise. This keeps suggestions feeling current without losing
+     * long-term learned patterns.
+     */
+    private fun recencyAdjust(lastUsed: Long, now: Long): Double {
+        val age = now - lastUsed
+        return when {
+            age < 0L -> 0.0 // clock skew — treat as no info
+            age < RECENCY_BOOST_WINDOW_MS -> RECENCY_BOOST.toDouble()
+            age > RECENCY_PENALTY_WINDOW_MS -> -RECENCY_PENALTY.toDouble()
+            else -> 0.0
+        }
+    }
+
+    private fun toCandidate(e: WordFrequencyEntity, isExactMatch: Boolean, weight: Float, now: Long): SuggestionCandidate {
+        val raw = freqToScore(e.frequency, weight)
+        val recencyAdj = recencyAdjust(e.lastUsed, now)
+        val confidence = (raw + recencyAdj).coerceIn(0.0, 1.0)
         return WordSuggestionCandidate(
             text = e.word,
             confidence = confidence,

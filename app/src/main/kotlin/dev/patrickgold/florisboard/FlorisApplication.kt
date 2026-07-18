@@ -46,6 +46,7 @@ import dev.patrickgold.florisboard.stylekit.appearance.AppearanceRepository
 import dev.patrickgold.florisboard.stylekit.autosender.createAutoSenderNotificationChannel
 import dev.patrickgold.florisboard.stylekit.data.StyleKitDatabase
 import dev.patrickgold.florisboard.stylekit.emojilab.ShortcutRepository
+import dev.patrickgold.florisboard.stylekit.preset.LivePresetApplier
 import dev.patrickgold.florisboard.stylekit.preset.PresetRepository
 import dev.patrickgold.jetpref.datastore.runtime.initAndroid
 import kotlinx.coroutines.CoroutineScope
@@ -162,7 +163,21 @@ class FlorisApplication : Application() {
                 } catch (e: Exception) {
                     flogError { e.toString() }
                 }
-                mainHandler.post { init() }
+                mainHandler.post {
+                    init()
+                    // StyleKit: After Direct Boot exit, the LivePresetApplier
+                    // singleton (already constructed inside KeyboardManager)
+                    // is stuck on an empty mappingSnapshot because its first
+                    // DB read failed under CE-lock. Nudge it to re-subscribe
+                    // to the config flow so the user's active preset is
+                    // restored immediately, rather than waiting for the next
+                    // backoff tick (up to 10s) or a manual toggle in Settings.
+                    try {
+                        LivePresetApplier.get(this@FlorisApplication).reattach()
+                    } catch (t: Throwable) {
+                        flogError { "LivePresetApplier.reattach failed: ${t.message}" }
+                    }
+                }
             }
         }
     }

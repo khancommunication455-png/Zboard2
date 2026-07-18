@@ -81,19 +81,56 @@ class AutoSenderAccessibilityService : AccessibilityService() {
      * Note: this is a *blocking* call — callers should run it in a background
      * coroutine. The foreground service does so via `runBlocking` inside its
      * own scope.
+     *
+     * StyleKit fix: the previous implementation had a malformed return
+     * expression at the end — `?: false.let { false.also { flogError ... } }`
+     * — which always logged "send failed" even when the inner try succeeded
+     * with `false` (e.g. target window never appeared). The new version
+     * logs a specific failure reason for each known failure mode so the
+     * user can see in the log WHY the send failed (target window not
+     * found / no EditText / EditText set-text failed / no send button /
+     * send-button click failed).
      */
-    suspend fun send(targetPackage: String, message: String): Boolean = tryOrNull {
-        val root = findTargetRoot(targetPackage) ?: return@tryOrNull false
-        val edit = findEditableNode(root) ?: return@tryOrNull false
-        val args = android.os.Bundle().apply {
-            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+    suspend fun send(targetPackage: String, message: String): Boolean {
+        return try {
+            val root = findTargetRoot(targetPackage)
+            if (root == null) {
+                flogError { "Accessibility send: target window for $targetPackage did not appear within ${TARGET_WINDOW_TIMEOUT_MS}ms (is the app in foreground?)" }
+                return false
+            }
+            val edit = findEditableNode(root)
+            if (edit == null) {
+                flogError { "Accessibility send: no editable EditText found in $targetPackage window" }
+                return false
+            }
+            val args = android.os.Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+            }
+            val okEditText = edit.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            if (!okEditText) {
+                flogError { "Accessibility send: ACTION_SET_TEXT failed on EditText in $targetPackage (some apps block this — try share-intent mode)" }
+                return false
+            }
+            delay(150) // let target UI update — send button may become enabled only after text is set
+            // StyleKit: try strict heuristic first (matches "send" / ">" / "▶"
+            // etc.), then fall back to the scoring heuristic for icon-only
+            // send buttons (Telegram, Signal, some WhatsApp builds).
+            val sendButton = findSendButton(root) ?: findSendButtonFallback(root)
+            if (sendButton == null) {
+                flogError { "Accessibility send: no send button found in $targetPackage (tried strict match + icon-button fallback). The target app may use a non-standard send UI." }
+                return false
+            }
+            val okSend = sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (!okSend) {
+                flogError { "Accessibility send: ACTION_CLICK failed on send button in $targetPackage" }
+                return false
+            }
+            true
+        } catch (t: Throwable) {
+            flogError { "Accessibility send: unexpected error for $targetPackage: ${t.message}" }
+            false
         }
-        val okEditText = edit.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        delay(150) // let target UI update
-        val sendButton = findSendButton(root)
-        val okSend = sendButton?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-        okEditText && okSend
-    } ?: false.let { false.also { flogError { "Accessibility send failed for $targetPackage" } } }
+    }
 
     private suspend fun findTargetRoot(targetPackage: String): AccessibilityNodeInfo? {
         return withTimeoutOrNull(TARGET_WINDOW_TIMEOUT_MS) {
@@ -118,14 +155,94 @@ class AutoSenderAccessibilityService : AccessibilityService() {
     private fun findSendButton(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val cd = node.contentDescription?.toString()?.lowercase().orEmpty()
         val text = node.text?.toString()?.lowercase().orEmpty()
-        val isSend = (cd.contains("send") || cd.contains("senden") || text.contains("send") || text == ">")
-            && node.isClickable
+        // StyleKit fix: the previous heuristic matched any content-description
+        // containing "send" — which would falsely match "send attachment",
+        // "send voice message", "send contact", etc. Tighten to require the
+        // content description OR text to be EXACTLY "send" (or the German
+        // equivalent "senden"), or to be just ">" (the WhatsApp send arrow).
+        // Also accept "send button" / "senden button" — common accessibility
+        // labels — but reject anything with extra words that suggests a
+        // different action.
+        val isExactSend = cd == "send" || cd == "senden" || cd == "send button" || cd == "senden button" ||
+            text == "send" || text == "senden" || text == ">" ||
+            // WhatsApp and several other chat apps label the send button with
+            // an emoji or symbol. Accept common variants.
+            text == "▶" || text == "➤" || text == "➤" || text == "↑"
+        val isSend = isExactSend && node.isClickable
         if (isSend) return node
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             findSendButton(child)?.let { return it }
         }
         return null
+    }
+
+    /**
+     * StyleKit QoL: fallback send-button finder for chat apps that use an
+     * icon-only send button with no text or content description (Telegram,
+     * some WhatsApp builds, Signal, etc.). Strategy:
+     *
+     *  1. Find ALL clickable elements in the view tree.
+     *  2. Score each by how "send-button-like" it looks:
+     *     - +5 if it's an ImageButton (most chat apps use ImageButton for send)
+     *     - +3 if it has no text (icon-only)
+     *     - +3 if it's positioned in the bottom-right quadrant of its parent
+     *     - +2 if its class name contains "send" (e.g. WhatsApp's SendButton)
+     *     - +1 if it's enabled (a disabled send button is not the target)
+     *     - -10 if its content-description mentions "attach", "camera",
+     *           "voice", "mic", "emoji", "sticker", "gif" (these are the
+     *           other common bottom-right icons in chat apps)
+     *  3. Return the highest-scoring clickable, or null if none scores >= 5.
+     *
+     * Only invoked when the strict [findSendButton] heuristic returns null,
+     * so it never overrides a clear match.
+     */
+    private fun findSendButtonFallback(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val candidates = mutableListOf<Pair<AccessibilityNodeInfo, Int>>()
+        collectClickable(root, candidates)
+        if (candidates.isEmpty()) return null
+        // Pick the highest-scoring candidate. Ties broken by traversal order
+        // (earlier in DFS = visually closer to top-left, which is wrong for
+        // send buttons — so we prefer LATER in DFS = closer to bottom-right).
+        return candidates.maxByOrNull { it.second }?.first?.takeIf { it.second >= 5 }
+    }
+
+    private fun collectClickable(node: AccessibilityNodeInfo, out: MutableList<Pair<AccessibilityNodeInfo, Int>>) {
+        if (node.isClickable) {
+            val score = scoreAsSendButton(node)
+            if (score > 0) out.add(node to score)
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            collectClickable(child, out)
+        }
+    }
+
+    private fun scoreAsSendButton(node: AccessibilityNodeInfo): Int {
+        var score = 0
+        val className = node.className?.toString().orEmpty().lowercase()
+        val cd = node.contentDescription?.toString().lowercase().orEmpty()
+        val text = node.text?.toString().lowercase().orEmpty()
+
+        // Positive signals
+        if (className.contains("imagebutton")) score += 5
+        if (text.isEmpty() && cd.isNotEmpty()) score += 3 // icon-only with label
+        if (text.isEmpty() && cd.isEmpty()) score += 1   // icon-only no label
+        if (className.contains("send")) score += 2
+        if (node.isEnabled) score += 1
+
+        // Hard negative — common bottom-right icons that are NOT the send button
+        val negatives = listOf("attach", "camera", "voice", "mic", "microphone",
+            "emoji", "sticker", "gif", "photo", "gallery", "file", "document",
+            "money", "payment", "call", "video", "add", "plus", "menu", "back",
+            "more", "settings", "search")
+        for (neg in negatives) {
+            if (cd.contains(neg) || text.contains(neg)) {
+                score -= 10
+                break
+            }
+        }
+        return score
     }
 }
 

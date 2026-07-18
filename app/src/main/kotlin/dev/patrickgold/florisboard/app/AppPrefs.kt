@@ -283,6 +283,15 @@ abstract class FlorisPreferenceModel : PreferenceModel() {
             key = "emoji__suggestion_candidate_max_count",
             default = 5,
         )
+        // StyleKit: Emoji Kitchen master toggle. Long-pressing an emoji in
+        // the palette opens the Kitchen panel showing Google's combo images
+        // fetched on-demand from gstatic. Some users may want to disable
+        // this for privacy (no gstatic network calls) or because they
+        // don't care about combos. Default ON to match Gboard.
+        val kitchenEnabled = boolean(
+            key = "emoji__kitchen_enabled",
+            default = true,
+        )
     }
 
     val gestures = Gestures()
@@ -626,7 +635,13 @@ abstract class FlorisPreferenceModel : PreferenceModel() {
         )
         val layout = enum(
             key = "smartbar__layout",
-            default = SmartbarLayout.SUGGESTIONS_ACTIONS_SHARED,
+            // StyleKit: default to the Gboard-style auto-swap row that
+            // crossfades between the quick-action toolbar (when the user
+            // isn't typing) and the 3-chip suggestion row (when there are
+            // candidates). This matches the Gboard UX shown in the user's
+            // reference screenshot. Users can still switch to the classic
+            // layouts via Settings → Smartbar → Layout.
+            default = SmartbarLayout.SUGGESTIONS_ACTIONS_AUTO,
         )
         val actionArrangement = custom(
             key = "smartbar__action_arrangement",

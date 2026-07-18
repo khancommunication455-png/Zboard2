@@ -52,6 +52,14 @@ object SenderStrategy {
         script: AutoSenderScriptEntity,
         message: String,
     ): Boolean = try {
+        // StyleKit fix: the previous implementation logged success as soon as
+        // the chooser was shown, which is misleading — the user still has to
+        // tap a target app and confirm send. We still return true here (the
+        // dispatch itself succeeded), but emit a clear log message so the
+        // user understands why "sent" doesn't mean "actually delivered" in
+        // share-intent mode. Switching the script to accessibility mode
+        // (script.useAccessibility = true) is the way to get fully automatic
+        // sends — see SenderStrategy.sendViaAccessibility for setup steps.
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, message)
@@ -65,6 +73,11 @@ object SenderStrategy {
         context.startActivity(Intent.createChooser(intent, "Send via").apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
+        flogError {
+            "Share-intent dispatch: chooser shown. User must tap a target app and confirm send. " +
+                "For fully automatic sending, enable Accessibility mode in the script settings " +
+                "and grant Accessibility permission to ZBoard."
+        }
         true
     } catch (t: Throwable) {
         flogError { "Share-intent dispatch failed: ${t.message}" }
@@ -81,12 +94,25 @@ object SenderStrategy {
             services.split(':').any { it.equals(expected, ignoreCase = true) }
         } ?: false
         if (!enabled) {
-            flogError { "AccessibilityService not enabled — cannot dispatch via accessibility" }
+            // StyleKit fix: be very explicit about WHAT the user needs to do.
+            // The previous log just said "not enabled" — the user has no idea
+            // what to enable or where. The new message spells out the exact
+            // path: Settings → Accessibility → Installed services → ZBoard →
+            // enable. This is what surfaces in the Auto Sender log UI.
+            flogError {
+                "AccessibilityService not enabled. To use accessibility mode, open " +
+                    "Settings → Accessibility → Installed services → ZBoard, then toggle ON. " +
+                    "(Package: ${context.packageName})"
+            }
             return false
         }
         val service = AutoSenderAccessibilityServiceHolder.instance
         if (service == null) {
-            flogError { "AccessibilityService instance not yet bound" }
+            flogError {
+                "AccessibilityService is enabled but not yet bound. This usually means the " +
+                    "service was just enabled — try restarting the Auto Sender script in a few seconds. " +
+                    "If the problem persists, toggle the accessibility service off and on again."
+            }
             return false
         }
         // Blocking call inside the foreground service's coroutine scope.

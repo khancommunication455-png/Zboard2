@@ -16,8 +16,6 @@
 
 package dev.patrickgold.florisboard.stylekit.preset
 
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -130,30 +128,4 @@ object DefaultPresets {
         val mapping: Map<String, String>,
         val description: String,
     )
-
-    // -- Import / export ----------------------------------------------------------------------
-
-    private val exportListSerializer = ListSerializer(PresetExport.serializer())
-
-    /** Portable JSON shape for a single preset, used by the export/import file. */
-    @Serializable
-    data class PresetExport(
-        val name: String,
-        val description: String = "",
-        val mapping: Map<String, String>,
-        /** Format version, bumped only if the shape below changes incompatibly. */
-        val formatVersion: Int = 1,
-    )
-
-    /** Encodes a list of presets for the "Export presets" file. Pretty-printed for readability. */
-    fun encodeExport(presets: List<PresetExport>): String =
-        Json { prettyPrint = true; ignoreUnknownKeys = true }.encodeToString(exportListSerializer, presets)
-
-    /**
-     * Decodes an "Export presets" file. Returns an empty list (never throws) on any
-     * parse failure, so a corrupt or foreign file just results in "0 presets imported"
-     * rather than a crash.
-     */
-    fun decodeExport(jsonStr: String): List<PresetExport> =
-        runCatching { json.decodeFromString(exportListSerializer, jsonStr) }.getOrDefault(emptyList())
 }
