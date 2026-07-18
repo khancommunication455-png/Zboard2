@@ -82,6 +82,9 @@ jobs:
           # Cache Gradle's deps + the Kotlin compile cache. Big speedup on reruns.
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Determine build type
         id: variant
         run: |
