@@ -204,7 +204,8 @@ class AutoSenderAccessibilityService : AccessibilityService() {
         // Pick the highest-scoring candidate. Ties broken by traversal order
         // (earlier in DFS = visually closer to top-left, which is wrong for
         // send buttons — so we prefer LATER in DFS = closer to bottom-right).
-        return candidates.maxByOrNull { it.second }?.first?.takeIf { it.second >= 5 }
+        val best = candidates.maxByOrNull { it.second } ?: return null
+        return best.first.takeIf { best.second >= 5 }
     }
 
     private fun collectClickable(node: AccessibilityNodeInfo, out: MutableList<Pair<AccessibilityNodeInfo, Int>>) {
@@ -221,8 +222,8 @@ class AutoSenderAccessibilityService : AccessibilityService() {
     private fun scoreAsSendButton(node: AccessibilityNodeInfo): Int {
         var score = 0
         val className = node.className?.toString().orEmpty().lowercase()
-        val cd = node.contentDescription?.toString().lowercase().orEmpty()
-        val text = node.text?.toString().lowercase().orEmpty()
+        val cd = node.contentDescription?.toString().orEmpty().lowercase()
+        val text = node.text?.toString().orEmpty().lowercase()
 
         // Positive signals
         if (className.contains("imagebutton")) score += 5
