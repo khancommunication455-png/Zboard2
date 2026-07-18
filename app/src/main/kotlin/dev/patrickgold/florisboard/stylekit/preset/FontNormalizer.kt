@@ -46,6 +46,90 @@ package dev.patrickgold.florisboard.stylekit.preset
 object FontNormalizer {
 
     /**
+     * Result of [normalizeWithMap]: the normalized [text], plus [map] — an
+     * index table of size `original.length + 1` where `map[i]` gives the
+     * offset in [text] corresponding to original char-index `i`. Used to
+     * translate cursor/selection/composing ranges from the raw (stylized)
+     * editor text to the normalized text and back.
+     */
+    data class NormalizeResult(val text: String, val map: List<Int>)
+
+    /**
+     * Same normalization as [normalize], but also returns a position map so
+     * callers (see [dev.patrickgold.florisboard.stylekit.preset.fontNormalized])
+     * can remap [dev.patrickgold.florisboard.ime.editor.EditorRange]s (selection,
+     * composing region, current word) to match the normalized text.
+     *
+     * Processes the input one code point at a time (rather than doing a
+     * whole-string NFD pass like [normalize]) specifically so each output
+     * chunk can be tied back to a single original index — this sacrifices
+     * nothing for the common case (each stylized code point maps to exactly
+     * one ASCII char) and degrades gracefully for multi-code-point cases
+     * (Zalgo combining stacks collapse to their base char at the index of
+     * the base char).
+     */
+    fun normalizeWithMap(text: String): NormalizeResult {
+        if (text.isEmpty()) return NormalizeResult(text, listOf(0))
+        if (userReverseMapping.isEmpty() && text.all { it.code <= 0x7F }) {
+            return NormalizeResult(text, (0..text.length).toList())
+        }
+
+        val map = IntArray(text.length + 1)
+        val out = StringBuilder()
+        var i = 0
+        while (i < text.length) {
+            map[i] = out.length
+            val cp = text.codePointAt(i)
+            val charCount = Character.charCount(cp)
+            val original = String(Character.toChars(cp))
+
+            // User-preset reverse mapping takes priority (single-codepoint
+            // stylized forms only — multi-codepoint substring rules can't be
+            // position-mapped generically, so those still work via
+            // [normalize], just not via this indexed variant).
+            val userMapped = userReverseMapping[original]
+            if (userMapped != null) {
+                out.append(userMapped)
+            } else {
+                val decomposed = java.text.Normalizer.normalize(original, java.text.Normalizer.Form.NFD)
+                val filtered = StringBuilder()
+                for (ch in decomposed) {
+                    val c = ch.code
+                    if (c in 0x0300..0x036F) continue
+                    if (c in 0x0483..0x0489) continue
+                    if (c in 0x0591..0x05BD) continue
+                    if (c == 0x05BF) continue
+                    if (c in 0x0610..0x061A) continue
+                    if (c in 0x064B..0x065F) continue
+                    if (c == 0x0670) continue
+                    if (c in 0x06D6..0x06DC) continue
+                    if (c in 0x06DF..0x06E4) continue
+                    if (c in 0x06E7..0x06E8) continue
+                    if (c in 0x06EA..0x06ED) continue
+                    if (c == 0x0711) continue
+                    if (c in 0x0730..0x074A) continue
+                    if (c in 0x0B82..0x0B83) continue
+                    filtered.append(ch)
+                }
+                when {
+                    filtered.isEmpty() -> {
+                        // Fully consumed by combining-mark stripping (rare) — contributes nothing.
+                    }
+                    filtered.codePointCount(0, filtered.length) == 1 -> {
+                        val fcp = filtered.codePointAt(0)
+                        val mapped = mapCodePoint(fcp)
+                        if (mapped != null) out.append(mapped) else out.appendCodePoint(fcp)
+                    }
+                    else -> out.append(filtered)
+                }
+            }
+            i += charCount
+        }
+        map[text.length] = out.length
+        return NormalizeResult(out.toString(), map.toList())
+    }
+
+    /**
      * The reverse of the currently-active preset's mapping, set by
      * [LivePresetApplier] whenever the active preset changes. Keys are
      * stylized strings (the preset's value side); values are the original
