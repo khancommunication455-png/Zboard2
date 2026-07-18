@@ -135,7 +135,7 @@ class EmojiShortcutSuggestionProvider(context: Context) : SuggestionProvider {
             // Split on whitespace and any non-emoji punctuation so multi-
             // emoji shortcuts surface as N separate chips.
             splitEmojis(sc.emojis).map { emoji ->
-                EmojiShortcutCandidate(sc = sc, singleEmoji = emoji)
+                EmojiShortcutCandidate(shortcut = sc, singleEmoji = emoji)
             }
         }.take(maxCandidateCount)
         val remainingSlots = (maxCandidateCount - userCandidates.size).coerceAtLeast(0)
