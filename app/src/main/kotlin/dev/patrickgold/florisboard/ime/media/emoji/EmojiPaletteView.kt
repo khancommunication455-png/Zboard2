@@ -177,6 +177,12 @@ fun EmojiPaletteView(
     var recentlyUsedVersion by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
+    // StyleKit: Emoji Kitchen anchor state. Must be declared here (before
+    // EmojiKeyWrapper below) so the local composable function can capture
+    // it — a local var declared later in the same scope is not visible to
+    // a local function defined earlier.
+    var kitchenAnchor by remember { mutableStateOf<String?>(null) }
+
     @Composable
     fun GridHeader(text: String) {
         SnyggText(
@@ -312,18 +318,22 @@ fun EmojiPaletteView(
         // the (😀, 😎) combo, end up with "😀😎" in the editor. The anchor
         // wasn't typed on long-press (long-press is for variants/kitchen),
         // so we have to type both here.
-        var kitchenAnchor by remember { mutableStateOf<String?>(null) }
         if (kitchenAnchor != null) {
             EmojiKitchenPanel(
                 anchorEmoji = kitchenAnchor!!,
                 onCommitCombo = { partnerEmoji ->
                     // Commit anchor first, then partner — both get added to
                     // emoji history so they show up in the Recently Used tab.
-                    keyboardManager.inputEventDispatcher.sendDownUp(kitchenAnchor!!)
-                    keyboardManager.inputEventDispatcher.sendDownUp(partnerEmoji)
+                    // sendDownUp/markEmojiUsed need KeyData/Emoji, not a raw
+                    // String, so wrap both values. Name/keywords aren't used
+                    // for input/history purposes, so empty values are fine.
+                    val anchorEmojiObj = Emoji(value = kitchenAnchor!!, name = "", keywords = emptyList())
+                    val partnerEmojiObj = Emoji(value = partnerEmoji, name = "", keywords = emptyList())
+                    keyboardManager.inputEventDispatcher.sendDownUp(anchorEmojiObj)
+                    keyboardManager.inputEventDispatcher.sendDownUp(partnerEmojiObj)
                     scope.launch {
-                        EmojiHistoryHelper.markEmojiUsed(prefs, kitchenAnchor!!)
-                        EmojiHistoryHelper.markEmojiUsed(prefs, partnerEmoji)
+                        EmojiHistoryHelper.markEmojiUsed(prefs, anchorEmojiObj)
+                        EmojiHistoryHelper.markEmojiUsed(prefs, partnerEmojiObj)
                     }
                     kitchenAnchor = null
                 },
