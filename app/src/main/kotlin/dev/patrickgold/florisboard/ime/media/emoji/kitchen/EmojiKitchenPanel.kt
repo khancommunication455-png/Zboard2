@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as lazyListItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -49,8 +51,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
 import kotlinx.coroutines.launch
 import org.florisboard.lib.snygg.ui.SnyggColumn
@@ -157,11 +160,11 @@ fun EmojiKitchenPanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 4.dp),
             )
-            androidx.compose.foundation.lazy.LazyRow(
+            LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.fillMaxWidth().height(56.dp),
             ) {
-                items(history.take(10), key = { it.imageUrl + it.timestamp }) { entry ->
+                lazyListItems(history.take(10), key = { it.imageUrl + it.timestamp }) { entry ->
                     ComboThumb(
                         combo = EmojiKitchenCombo(entry.leftEmoji, entry.rightEmoji, entry.imageUrl),
                         onClick = {
