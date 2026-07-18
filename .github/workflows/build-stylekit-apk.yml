@@ -71,11 +71,10 @@ jobs:
         with:
           # Components installed by setup-android. The project's build.gradle.kts
           # pins compileSdk=36 and NDK 29.0.14206865 (see gradle/tools.versions.toml).
-          packages: |
-            platforms;android-36
-            build-tools;36.0.0
-            ndk;29.0.14206865
-            cmake;3.22.1
+          # NOTE: this action does not split the `packages` input on newlines —
+          # it must be a single space-separated string, or sdkmanager receives
+          # one malformed package name containing literal "\n" characters.
+          packages: "platforms;android-36 build-tools;36.0.0 ndk;29.0.14206865 cmake;3.22.1"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -123,3 +122,4 @@ jobs:
             **/build/outputs/logs/
           retention-days: 7
           if-no-files-found: ignore
+          
