@@ -10,6 +10,12 @@
   },
   "themes": [
     {
+      "id": "gboard_light",
+      "label": "Gboard Light",
+      "authors": [ "custom" ],
+      "isNight": false
+    },
+    {
       "id": "floris_day",
       "label": "Floris Day",
       "authors": [ "patrickgold" ],
