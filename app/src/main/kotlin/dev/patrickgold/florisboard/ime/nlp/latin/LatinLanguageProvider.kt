@@ -424,9 +424,17 @@ class LatinLanguageProvider(context: Context) : SpellingProvider, SuggestionProv
         val composing = FontNormalizer.normalize(content.composingText.toString()).lowercase()
         val limit = maxCandidateCount.coerceAtMost(MAX_SUGGEST_CANDIDATES).coerceAtLeast(1)
         return if (composing.isBlank()) {
-            // Next-word fallback: top-frequency English words. Useful before
-            // the AdaptiveLearningProvider has built up personal bigrams.
-            topFrequencyCandidates(limit)
+            // Next-word fallback: top-frequency English words, shown only when
+            // there's actual text before the cursor (i.e. the user just
+            // finished a word/sentence and this is genuine next-word
+            // prediction). Previously this fired unconditionally, so
+            // suggestions like "the/of/and/to/was" appeared even in a
+            // completely empty field before any typing had happened.
+            if (content.text.isBlank()) {
+                emptyList()
+            } else {
+                topFrequencyCandidates(limit)
+            }
         } else {
             prefixCandidates(composing, limit)
         }
