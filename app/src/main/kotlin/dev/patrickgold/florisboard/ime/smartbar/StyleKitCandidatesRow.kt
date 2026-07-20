@@ -185,8 +185,9 @@ private fun StyleKitCandidateChip(
             // stylizer used for normal typing and for commitCompletion(), so the
             // suggestion chip *previews* exactly what will be inserted when tapped
             // instead of showing plain text that then changes on commit.
-            val presetApplier = remember(context) {
-                dev.patrickgold.florisboard.stylekit.preset.LivePresetApplier.get(context)
+            val chipContext = LocalContext.current
+            val presetApplier = remember(chipContext) {
+                dev.patrickgold.florisboard.stylekit.preset.LivePresetApplier.get(chipContext)
             }
             val displayText = if (presetApplier.isActive()) {
                 candidate.text.toString().map { presetApplier.transformChar(it) }.joinToString("")
