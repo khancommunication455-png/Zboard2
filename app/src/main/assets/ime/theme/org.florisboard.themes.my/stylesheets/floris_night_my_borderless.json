@@ -244,7 +244,7 @@
     "background": "var(--surface)",
     "foreground": "var(--on-background)"
   },
-  "smartbar-candidate-word[emphasis=\"1\"]": {
+  "smartbar-candidate-word[emphasis=1]": {
     "background": "transparent",
     "foreground": "var(--primary)",
     "font-weight": "bold",

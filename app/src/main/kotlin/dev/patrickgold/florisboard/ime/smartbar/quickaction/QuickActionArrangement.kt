@@ -70,6 +70,7 @@ data class QuickActionArrangement(
             dynamicActions = listOf(
                 QuickAction.InsertKey(TextKeyData.UNDO),
                 QuickAction.InsertKey(TextKeyData.REDO),
+                QuickAction.ToggleFontStyle,
                 QuickAction.InsertKey(TextKeyData.SETTINGS),
                 QuickAction.InsertKey(TextKeyData.TOGGLE_FLOATING_WINDOW),
                 QuickAction.InsertKey(TextKeyData.TOGGLE_RESIZE_MODE),

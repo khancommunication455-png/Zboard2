@@ -281,7 +281,7 @@ abstract class FlorisPreferenceModel : PreferenceModel() {
         )
         val suggestionCandidateMaxCount = int(
             key = "emoji__suggestion_candidate_max_count",
-            default = 5,
+            default = 2, // Gboard shows only 2 emoji suggestions at a time
         )
         // StyleKit: Emoji Kitchen master toggle. Long-pressing an emoji in
         // the palette opens the Kitchen panel showing Google's combo images

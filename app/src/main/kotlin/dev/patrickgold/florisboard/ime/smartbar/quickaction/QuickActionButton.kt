@@ -17,6 +17,8 @@
 package dev.patrickgold.florisboard.ime.smartbar.quickaction
 
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.TextFormat
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -150,6 +152,16 @@ fun QuickActionButton(
                             selector = selector,
                             text = action.data.firstOrNull().toString().ifBlank { "?" },
                         )
+                    }
+
+                    is QuickAction.ToggleFontStyle -> {
+                        SnyggBox(
+                            elementName = "$elementName-icon",
+                            attributes = attributes,
+                            selector = selector,
+                        ) {
+                            SnyggIcon(imageVector = Icons.Filled.TextFormat)
+                        }
                     }
                 }
 

@@ -240,7 +240,7 @@
     "background": "var(--surface)",
     "foreground": "var(--on-surface)"
   },
-  "smartbar-candidate-word[emphasis=\"1\"]": {
+  "smartbar-candidate-word[emphasis=1]": {
     "background": "var(--surface)",
     "foreground": "var(--on-surface)",
     "font-weight": "bold",

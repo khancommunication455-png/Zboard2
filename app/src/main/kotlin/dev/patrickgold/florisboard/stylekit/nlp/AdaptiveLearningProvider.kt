@@ -375,7 +375,9 @@ class AdaptiveLearningProvider(context: Context) : SuggestionProvider {
         return WordSuggestionCandidate(
             text = e.word,
             confidence = confidence,
-            isEligibleForAutoCommit = isExactMatch && confidence > 0.6,
+            // Auto-commit disabled: learned words rank higher and appear as
+            // suggestions, but are only inserted when the user taps them.
+            isEligibleForAutoCommit = false,
             isEligibleForUserRemoval = !e.isUserAdded,
             sourceProvider = this@AdaptiveLearningProvider,
         )

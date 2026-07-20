@@ -448,10 +448,10 @@ class LatinLanguageProvider(context: Context) : SpellingProvider, SuggestionProv
             WordSuggestionCandidate(
                 text = word,
                 confidence = (freq.toDouble() / 255.0).coerceIn(0.0, 1.0),
-                // Auto-commit (autocorrect) the top candidate only when the
-                // composing prefix is at least 3 chars and the candidate is
-                // a "high-confidence" match (freq >= 200).
-                isEligibleForAutoCommit = idx == 0 && prefix.length >= 3 && freq >= 200,
+                // Auto-commit disabled by user preference: suggestions are only
+                // ever applied when the user explicitly taps a candidate in the
+                // smartbar. Nothing here silently rewrites what was typed.
+                isEligibleForAutoCommit = false,
                 isEligibleForUserRemoval = false,
                 sourceProvider = this@LatinLanguageProvider,
             )

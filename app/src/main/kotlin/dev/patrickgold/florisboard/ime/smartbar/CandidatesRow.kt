@@ -116,6 +116,7 @@ fun CandidatesRow(modifier: Modifier = Modifier) {
                     modifier = candidateModifier,
                     candidate = candidate,
                     displayMode = displayMode,
+                    isEmphasized = n == 0 && candidates.size > 1,
                     onClick = {
                         // Can't use candidate directly
                         keyboardManager.commitCandidate(candidates[n])
@@ -141,6 +142,7 @@ private fun CandidateItem(
     candidate: SuggestionCandidate,
     displayMode: CandidatesDisplayMode,
     modifier: Modifier = Modifier,
+    isEmphasized: Boolean = false,
     onClick: () -> Unit = { },
     onLongPress: () -> Boolean = { false },
     longPressDelay: Long,
@@ -152,7 +154,10 @@ private fun CandidateItem(
     } else {
         FlorisImeUi.SmartbarCandidateWord
     }.elementName
-    val attributes = mapOf("auto-commit" to if (candidate.isEligibleForAutoCommit) 1 else 0)
+    val attributes = mapOf(
+        "auto-commit" to if (candidate.isEligibleForAutoCommit) 1 else 0,
+        "emphasis" to if (isEmphasized) 1 else 0,
+    )
     val selector = if (isPressed) SnyggSelector.PRESSED else SnyggSelector.NONE
 
     SnyggRow(

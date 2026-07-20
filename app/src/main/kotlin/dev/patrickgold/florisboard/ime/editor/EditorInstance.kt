@@ -250,7 +250,18 @@ class EditorInstance(context: Context) : AbstractEditorInstance(context) {
      * @return True on success, false if an error occurred or the input connection is invalid.
      */
     fun commitCompletion(candidate: SuggestionCandidate): Boolean {
-        val text = candidate.text.toString()
+        val rawText = candidate.text.toString()
+        // StyleKit: when a Font Style preset is active, characters typed by hand
+        // get stylized live (see LivePresetApplier.transformChar), but a tapped
+        // suggestion previously bypassed this and inserted plain ASCII, breaking
+        // font continuity mid-sentence. Restyle the candidate text the same way
+        // before committing so tapped suggestions match the active font too.
+        val presetApplier = dev.patrickgold.florisboard.stylekit.preset.LivePresetApplier.get(appContext)
+        val text = if (presetApplier.isActive()) {
+            rawText.map { presetApplier.transformChar(it) }.joinToString("")
+        } else {
+            rawText
+        }
         if (text.isEmpty() || activeInfo.isRawInputEditor) return false
         val content = activeContent
         return if (content.composing.isValid) {

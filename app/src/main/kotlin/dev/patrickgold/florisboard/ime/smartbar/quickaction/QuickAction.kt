@@ -25,6 +25,10 @@ import dev.patrickgold.florisboard.ime.keyboard.KeyData
 import dev.patrickgold.florisboard.ime.text.key.KeyCode
 import dev.patrickgold.florisboard.ime.text.keyboard.TextKeyData
 import dev.patrickgold.florisboard.keyboardManager
+import dev.patrickgold.florisboard.stylekit.data.StyleKitDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.florisboard.lib.compose.stringRes
@@ -66,6 +70,27 @@ sealed class QuickAction {
         override fun onPointerUp(context: Context) {
             val editorInstance by context.editorInstance()
             editorInstance.commitText(data)
+        }
+    }
+
+    /**
+     * One-tap toggle for the StyleKit "Font Style" live preset (e.g. stylized
+     * Unicode text like "𝗁𝖾𝗅𝗅𝗈"). Flips [StyleKitConfigEntity.liveFontPresetEnabled]
+     * without changing which preset is selected, so the user can jump back to
+     * normal typing and re-enable their chosen stylized font with a single button.
+     */
+    @Serializable
+    @SerialName("toggle_font_style")
+    data object ToggleFontStyle : QuickAction() {
+        override fun onPointerUp(context: Context) {
+            val db = StyleKitDatabase.get(context)
+            val dao = db.configDao()
+            GlobalScope.launch(Dispatchers.IO) {
+                val config = dao.get() ?: return@launch
+                // Only meaningful if a preset has actually been picked (id != 0).
+                if (config.activePresetId == 0L) return@launch
+                dao.setPreset(config.activePresetId, !config.livePresetEnabled)
+            }
         }
     }
 }
@@ -112,6 +137,7 @@ fun QuickAction.computeDisplayName(evaluator: ComputingEvaluator): String {
             else -> R.string.general__invalid_fatal
         })
         is QuickAction.InsertText -> data
+        is QuickAction.ToggleFontStyle -> stringRes(R.string.quick_action__toggle_font_style)
     }
 }
 
@@ -152,5 +178,6 @@ fun QuickAction.computeTooltip(evaluator: ComputingEvaluator): String {
             else -> R.string.general__invalid_fatal
         })
         is QuickAction.InsertText -> "Insert text '$data'"
+        is QuickAction.ToggleFontStyle -> stringRes(R.string.quick_action__toggle_font_style__tooltip)
     }
 }

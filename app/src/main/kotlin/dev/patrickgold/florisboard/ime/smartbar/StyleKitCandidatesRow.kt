@@ -50,6 +50,7 @@ import org.florisboard.lib.snygg.SnyggSelector
 import org.florisboard.lib.snygg.ui.SnyggColumn
 import org.florisboard.lib.snygg.ui.SnyggRow
 import org.florisboard.lib.snygg.ui.SnyggSpacer
+import org.florisboard.lib.snygg.ui.SnyggText
 
 /**
  * StyleKit Part 1: a 3-chip suggestion row that visually emphasizes the **center**
@@ -180,23 +181,38 @@ private fun StyleKitCandidateChip(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Use plain Text for the main label so we can apply FontWeight
-            // directly. SnyggText doesn't expose fontWeight as a parameter
-            // (it comes from the Snygg stylesheet); for the emphasized center
-            // chip we want to override that, so we use Text here. The Snygg
-            // element name is still applied via the parent SnyggRow/SnyggColumn.
-            Text(
-                text = candidate.text.toString(),
-                fontWeight = if (isEmphasized) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            // Converter: run the candidate text through the same live Font Style
+            // stylizer used for normal typing and for commitCompletion(), so the
+            // suggestion chip *previews* exactly what will be inserted when tapped
+            // instead of showing plain text that then changes on commit.
+            val presetApplier = remember(context) {
+                dev.patrickgold.florisboard.stylekit.preset.LivePresetApplier.get(context)
+            }
+            val displayText = if (presetApplier.isActive()) {
+                candidate.text.toString().map { presetApplier.transformChar(it) }.joinToString("")
+            } else {
+                candidate.text.toString()
+            }
+            // Was plain Compose `Text` before, which bypasses Snygg entirely (no
+            // font-family, no themed font-weight). SnyggText resolves both from
+            // the stylesheet, including the emphasis-driven bold rule already
+            // defined for `smartbar-candidate-word[emphasis="1"]`, so the manual
+            // FontWeight override is no longer needed.
+            SnyggText(
+                elementName = elementName,
+                attributes = attributes,
+                selector = selector,
+                text = displayText,
             )
             if (candidate.secondaryText != null) {
-                Text(
-                    text = candidate.secondaryText!!.toString(),
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                val secondaryDisplayText = if (presetApplier.isActive()) {
+                    candidate.secondaryText!!.toString().map { presetApplier.transformChar(it) }.joinToString("")
+                } else {
+                    candidate.secondaryText!!.toString()
+                }
+                SnyggText(
+                    elementName = FlorisImeUi.SmartbarCandidateWordSecondaryText.elementName,
+                    text = secondaryDisplayText,
                 )
             }
         }
