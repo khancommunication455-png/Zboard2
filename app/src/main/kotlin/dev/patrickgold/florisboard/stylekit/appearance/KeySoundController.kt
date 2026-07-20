@@ -17,6 +17,7 @@
 package dev.patrickgold.florisboard.stylekit.appearance
 
 import android.content.Context
+import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.lib.devtools.flogError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +47,13 @@ class KeySoundController(context: Context) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val repo = tryOrNull { AppearanceRepository(appContext) }
     val soundManager = tryOrNull { KeySoundManager(appContext) }
+    // Bug fix: there were previously two completely independent haptics toggles
+    // -- this Appearance-screen config (Room-backed) and the Input Feedback
+    // screen's `prefs.inputFeedback.hapticEnabled` (DataStore-backed). Turning
+    // off only one left the other still vibrating on every keystroke, which
+    // looked like "vibration got weaker" instead of fully off. Now both are
+    // required to be true for a click to actually vibrate.
+    private val globalPrefs by FlorisPreferenceStore
 
     @Volatile private var hapticsEnabled: Boolean = true
 
@@ -77,6 +85,7 @@ class KeySoundController(context: Context) {
      * Safe to call from the input thread.
      */
     fun playClick() {
-        tryOrNull { soundManager?.playClick(hapticsEnabled) }
+        val globalHapticsAllowed = tryOrNull { globalPrefs.inputFeedback.hapticEnabled.get() } ?: true
+        tryOrNull { soundManager?.playClick(hapticsEnabled && globalHapticsAllowed) }
     }
 }
