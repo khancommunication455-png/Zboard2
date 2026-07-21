@@ -185,15 +185,11 @@ private fun StyleKitCandidateChip(
             // stylizer used for normal typing and for commitCompletion(), so the
             // suggestion chip *previews* exactly what will be inserted when tapped
             // instead of showing plain text that then changes on commit.
-            val chipContext = LocalContext.current
-            val presetApplier = remember(chipContext) {
-                dev.patrickgold.florisboard.stylekit.preset.LivePresetApplier.get(chipContext)
-            }
-            val displayText = if (presetApplier.isActive()) {
-                candidate.text.toString().map { presetApplier.transformChar(it) }.joinToString("")
-            } else {
-                candidate.text.toString()
-            }
+            // Per user preference: suggestion chips display in plain/simple
+            // font at all times. Conversion to the active Font Style preset
+            // only happens at commit time (see EditorInstance.commitCompletion),
+            // not in this preview.
+            val displayText = candidate.text.toString()
             // Was plain Compose `Text` before, which bypasses Snygg entirely (no
             // font-family, no themed font-weight). SnyggText resolves both from
             // the stylesheet, including the emphasis-driven bold rule already
@@ -206,11 +202,7 @@ private fun StyleKitCandidateChip(
                 text = displayText,
             )
             if (candidate.secondaryText != null) {
-                val secondaryDisplayText = if (presetApplier.isActive()) {
-                    candidate.secondaryText!!.toString().map { presetApplier.transformChar(it) }.joinToString("")
-                } else {
-                    candidate.secondaryText!!.toString()
-                }
+                val secondaryDisplayText = candidate.secondaryText!!.toString()
                 SnyggText(
                     elementName = FlorisImeUi.SmartbarCandidateWordSecondaryText.elementName,
                     text = secondaryDisplayText,

@@ -87,6 +87,7 @@ data class QuickActionArrangement(
                 QuickAction.InsertKey(TextKeyData.CLIPBOARD_COPY),
                 QuickAction.InsertKey(TextKeyData.CLIPBOARD_CUT),
                 QuickAction.InsertKey(TextKeyData.CLIPBOARD_PASTE),
+                QuickAction.InsertKey(TextKeyData(code = dev.patrickgold.florisboard.ime.text.key.KeyCode.CLIPBOARD_PASTE_SCREENSHOT)),
                 QuickAction.InsertKey(TextKeyData.CLIPBOARD_SELECT_ALL),
                 QuickAction.InsertKey(TextKeyData.LANGUAGE_SWITCH),
                 QuickAction.InsertKey(TextKeyData.FORWARD_DELETE),

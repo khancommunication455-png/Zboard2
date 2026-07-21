@@ -108,7 +108,7 @@ fun QuickAction.computeDisplayName(evaluator: ComputingEvaluator): String {
             KeyCode.ARROW_LEFT -> R.string.quick_action__arrow_left
             KeyCode.ARROW_RIGHT -> R.string.quick_action__arrow_right
             KeyCode.CLIPBOARD_CLEAR_PRIMARY_CLIP -> R.string.quick_action__clipboard_clear_primary_clip
-            KeyCode.CLIPBOARD_COPY -> R.string.quick_action__clipboard_copy
+            KeyCode.CLIPBOARD_PASTE_SCREENSHOT -> R.string.quick_action__clipboard_paste_screenshot
             KeyCode.CLIPBOARD_CUT -> R.string.quick_action__clipboard_cut
             KeyCode.CLIPBOARD_PASTE -> R.string.quick_action__clipboard_paste
             KeyCode.CLIPBOARD_SELECT_ALL -> R.string.quick_action__clipboard_select_all
@@ -150,6 +150,7 @@ fun QuickAction.computeTooltip(evaluator: ComputingEvaluator): String {
             KeyCode.ARROW_LEFT -> R.string.quick_action__arrow_left__tooltip
             KeyCode.ARROW_RIGHT -> R.string.quick_action__arrow_right__tooltip
             KeyCode.CLIPBOARD_CLEAR_PRIMARY_CLIP -> R.string.quick_action__clipboard_clear_primary_clip__tooltip
+            KeyCode.CLIPBOARD_PASTE_SCREENSHOT -> R.string.quick_action__clipboard_paste_screenshot__tooltip
             KeyCode.CLIPBOARD_COPY -> R.string.quick_action__clipboard_copy__tooltip
             KeyCode.CLIPBOARD_CUT -> R.string.quick_action__clipboard_cut__tooltip
             KeyCode.CLIPBOARD_PASTE -> R.string.quick_action__clipboard_paste__tooltip

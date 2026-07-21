@@ -825,6 +825,7 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
             KeyCode.CLIPBOARD_CUT -> editorInstance.performClipboardCut()
             KeyCode.CLIPBOARD_COPY -> editorInstance.performClipboardCopy()
             KeyCode.CLIPBOARD_PASTE -> editorInstance.performClipboardPaste()
+            KeyCode.CLIPBOARD_PASTE_SCREENSHOT -> clipboardManager.pasteLatestScreenshot()
             KeyCode.CLIPBOARD_SELECT -> handleClipboardSelect()
             KeyCode.CLIPBOARD_SELECT_ALL -> editorInstance.performClipboardSelectAll()
             KeyCode.CLIPBOARD_CLEAR_HISTORY -> clipboardManager.clearHistory()

@@ -364,7 +364,32 @@ object FontNormalizer {
         // Fullwidth digits (U+FF10–U+FF19)
         if (cp in 0xFF10..0xFF19) return ('0' + (cp - 0xFF10))
 
+        // Cross-script "lookalike" characters commonly used in hand-styled
+        // text (e.g. "ʟ๏ʟ"). These aren't a contiguous Unicode block like the
+        // math-alphanumeric ranges above, so they're listed individually.
+        // Not exhaustive -- there are thousands of possible lookalikes across
+        // all scripts (see Unicode's confusables.txt) -- but this covers the
+        // common ones people actually type for stylized "leet"-style text.
+        LOOKALIKE_TABLE[cp]?.let { return it }
+
         // Not a recognized stylized form
         return null
+    }
+
+    private val LOOKALIKE_TABLE: Map<Int, Char> = buildMap {
+        // IPA / Phonetic Extensions small-caps block (U+0250–U+02AF, U+1D00–U+1D25)
+        // commonly used as fake "small caps" stylized text.
+        put(0x0299, 'B'); put(0x1D04, 'C'); put(0x1D05, 'D'); put(0x1D07, 'E')
+        put(0xA730, 'F'); put(0x0262, 'G'); put(0x029C, 'H'); put(0x026A, 'I')
+        put(0x1D0A, 'J'); put(0x1D0B, 'K'); put(0x029F, 'L'); put(0x1D0D, 'M')
+        put(0x0274, 'N'); put(0x1D0F, 'O'); put(0x1D18, 'P'); put(0x0280, 'R')
+        put(0xA731, 'S'); put(0x1D1B, 'T'); put(0x1D1C, 'U'); put(0x1D20, 'V')
+        put(0x1D21, 'W'); put(0x028F, 'Y'); put(0x1D22, 'Z')
+        // Common single-symbol lookalikes for O/0 pulled from other scripts
+        // (Thai FONGMAN, etc.) -- the specific ones people actually reach
+        // for when styling text.
+        put(0x0E4F, 'o')  // ๏ THAI CHARACTER FONGMAN
+        put(0x0966, '0')  // ०  DEVANAGARI DIGIT ZERO
+        put(0x09E6, '0')  // ০ BENGALI DIGIT ZERO
     }
 }

@@ -385,6 +385,62 @@ class ClipboardManager(
     }
 
     /**
+     * Screenshot paster: finds the most recently taken screenshot on the
+     * device (via MediaStore) and pastes it directly into the current field,
+     * the same way an image clipboard item is pasted. Screenshots aren't
+     * automatically placed on the system clipboard by Android, so without
+     * this the user would have to manually open Gallery, copy the
+     * screenshot, switch back, and paste -- this does it in one tap from
+     * the keyboard toolbar.
+     *
+     * Requires READ_MEDIA_IMAGES (API 33+) or READ_EXTERNAL_STORAGE (below)
+     * to be granted; if not granted, shows a toast rather than failing silently.
+     */
+    fun pasteLatestScreenshot() {
+        ioScope.launch {
+            val uri = findLatestScreenshotUri(appContext)
+            if (uri == null) {
+                appContext.showShortToastSync("No screenshot found.")
+                return@launch
+            }
+            val item = ClipboardItem(
+                type = ItemType.IMAGE,
+                text = null,
+                uri = uri,
+                creationTimestampMs = System.currentTimeMillis(),
+                isPinned = false,
+                mimeTypes = listOf("image/png", "image/jpeg"),
+            )
+            pasteItem(item)
+        }
+    }
+
+    private fun findLatestScreenshotUri(context: Context): android.net.Uri? {
+        val collection = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            android.provider.MediaStore.Images.Media._ID,
+            android.provider.MediaStore.Images.Media.RELATIVE_PATH,
+            android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+        )
+        // Match the standard Android "Screenshots" folder/name pattern rather
+        // than just "most recent image", so we don't accidentally paste an
+        // unrelated photo the user just took or received.
+        val selection = "${android.provider.MediaStore.Images.Media.RELATIVE_PATH} LIKE ? OR " +
+            "${android.provider.MediaStore.Images.Media.DISPLAY_NAME} LIKE ?"
+        val selectionArgs = arrayOf("%Screenshot%", "Screenshot%")
+        val sortOrder = "${android.provider.MediaStore.Images.Media.DATE_ADDED} DESC LIMIT 1"
+        return tryOrNull {
+            context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Images.Media._ID)
+                    val id = cursor.getLong(idCol)
+                    android.content.ContentUris.withAppendedId(collection, id)
+                } else null
+            }
+        }
+    }
+
+    /**
      * Returns true if the editor can accept the clip item, else false.
      */
     fun canBePasted(clipItem: ClipboardItem?): Boolean {

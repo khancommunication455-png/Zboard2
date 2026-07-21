@@ -92,7 +92,23 @@ class KeySoundManager(context: Context) {
 
     @Volatile private var currentPack: String = PACK_MECHANICAL
     @Volatile private var soundId: Int = 0
+    // Bug fix: SoundPool.load() returns a sample ID immediately but decodes the
+    // audio asynchronously in the background. Calling play() before decoding
+    // finishes is a no-op with no error -- previously `soundId` was treated as
+    // "ready" the instant load() returned, so a key press shortly after a sound
+    // pack change (e.g. right after opening the keyboard) silently played
+    // nothing. This flag is only set true once onLoadComplete actually fires
+    // for the current soundId.
+    @Volatile private var soundLoaded: Boolean = false
     @Volatile private var cachedCustomUri: String = ""
+
+    init {
+        soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+            if (status == 0 && sampleId == soundId) {
+                soundLoaded = true
+            }
+        }
+    }
 
     /**
      * Reloads the sound sample only when the pack changes (or when a new custom
@@ -106,6 +122,7 @@ class KeySoundManager(context: Context) {
             return
         }
         currentPack = pack
+        soundLoaded = false
         when (pack) {
             PACK_CUSTOM -> loadCustom(customUri)
             else -> loadBuiltin(pack)
@@ -146,7 +163,7 @@ class KeySoundManager(context: Context) {
      * optionally fires haptic feedback (independent of sound).
      */
     fun playClick(hapticsEnabled: Boolean) {
-        if (!muted && soundId != 0) {
+        if (!muted && soundId != 0 && soundLoaded) {
             tryOrNull { soundPool.play(soundId, volume, volume, 1, 0, 1f) }
         }
         if (hapticsEnabled && vibrator != null && vibrator.hasVibrator()) {

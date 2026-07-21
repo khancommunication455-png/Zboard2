@@ -87,8 +87,15 @@ class EmojiShortcutSuggestionProvider(context: Context) : SuggestionProvider {
         // single normalization point that makes the emoji shortcuts work
         // on EVERY font preset (Math Sans, Bold Serif, Bubble, Zalgo,
         // Upside Down, and any future presets the user creates).
+        // Bug fix: some apps (e.g. WhatsApp on certain fields like its chat
+        // search bar) disable the composing region entirely, so
+        // composingText is always "" even while the user is typing a real
+        // word there. currentWordText is tracked independently and still
+        // works in that case, so fall back to it. Without this, emoji
+        // shortcuts silently never fired on those fields.
+        val rawWord = content.composingText.ifEmpty { content.currentWordText }
         val currentWord = dev.patrickgold.florisboard.stylekit.preset.FontNormalizer
-            .normalize(content.composingText.toString())
+            .normalize(rawWord.toString())
             .lowercase()
         if (currentWord.isBlank()) {
             _matches.value = emptyList()
@@ -106,7 +113,15 @@ class EmojiShortcutSuggestionProvider(context: Context) : SuggestionProvider {
         // shortcut for "love" (e.g. "💕 😘") wins over Gboard's default
         // if they happen to share the same trigger.
         tryOrNull { GboardEmojiShortcutsIndex.ensureLoaded(appContext) }
-        val userTriggerKeys = userMatches.map { it.trigger.lowercase() }.toSet()
+        // Bug fix: previously ANY entry in userMatches (including the small
+        // hardcoded built-in seed list from DefaultShortcuts.kt) blocked the
+        // richer Gboard dataset for that trigger. That's wrong -- the seed
+        // list isn't something the user actually customized, so it shouldn't
+        // silently shadow better/different Gboard matches. E.g. "wow" was
+        // hijacked by the built-in seed's 😮/🤩, permanently hiding Gboard's
+        // 😳/😲 for that word. Only genuinely custom (non-built-in) entries
+        // should take priority now.
+        val userTriggerKeys = userMatches.filter { !it.isBuiltIn }.map { it.trigger.lowercase() }.toSet()
         val gboardExact = tryOrNull { GboardEmojiShortcutsIndex.lookup(currentWord) } ?: emptyList()
         val gboardPrefix = tryOrNull { GboardEmojiShortcutsIndex.lookupByPrefix(currentWord, maxCandidateCount) } ?: emptyList()
         val gboardCandidates = buildList {
